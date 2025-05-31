@@ -1,11 +1,23 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+
+import React from 'react';
+import WelcomeCard from '@/components/WelcomeCard';
+import BackgroundPattern from '@/components/BackgroundPattern';
 
 const Index = () => {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
-        <p className="text-xl text-gray-600">Start building your amazing project here!</p>
+    <div className="min-h-screen relative bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center p-4">
+      <BackgroundPattern />
+      
+      <div className="relative z-10 w-full">
+        <div className="container mx-auto">
+          <WelcomeCard />
+          
+          <div className="text-center mt-8">
+            <p className="text-sm text-gray-500 font-medium">
+              Version 5.0 • Ready to schedule your success
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );
