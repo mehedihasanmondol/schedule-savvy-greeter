@@ -12,7 +12,8 @@ import {
   Wallet,
   Bell,
   DollarSign,
-  Menu
+  Menu,
+  Shield
 } from "lucide-react";
 
 interface SidebarProps {
@@ -84,6 +85,12 @@ export const Sidebar = ({ activeTab, onTabChange, hasPermission }: SidebarProps)
       label: "Bank Balance", 
       icon: Wallet,
       permission: "bank_balance_view"
+    },
+    { 
+      id: "permissions", 
+      label: "Permissions", 
+      icon: Shield,
+      permission: "employees_manage"
     },
   ];
 

@@ -362,6 +362,12 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_role_permissions: {
+        Args: { user_role: Database["public"]["Enums"]["user_role"] }
+        Returns: {
+          permission: Database["public"]["Enums"]["app_permission"]
+        }[]
+      }
       get_user_role: {
         Args: { user_id: string }
         Returns: Database["public"]["Enums"]["user_role"]
@@ -369,6 +375,13 @@ export type Database = {
       has_permission: {
         Args: {
           user_id: string
+          required_permission: Database["public"]["Enums"]["app_permission"]
+        }
+        Returns: boolean
+      }
+      role_has_permission: {
+        Args: {
+          user_role: Database["public"]["Enums"]["user_role"]
           required_permission: Database["public"]["Enums"]["app_permission"]
         }
         Returns: boolean

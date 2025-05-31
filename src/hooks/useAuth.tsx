@@ -20,6 +20,7 @@ interface AuthContextType {
   loading: boolean;
   signOut: () => Promise<void>;
   hasPermission: (permission: string) => boolean;
+  userPermissions: string[];
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -29,6 +30,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [userPermissions, setUserPermissions] = useState<string[]>([]);
   const { toast } = useToast();
 
   const fetchProfile = async (userId: string) => {
@@ -45,44 +47,37 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       setProfile(data);
+      
+      // Fetch user permissions from database
+      if (data?.role) {
+        await fetchUserPermissions(data.role);
+      }
     } catch (error) {
       console.error('Error fetching profile:', error);
     }
   };
 
-  const hasPermission = (permission: string): boolean => {
-    if (!profile) return false;
-    
-    // Check role-based permissions
-    const rolePermissions: Record<string, string[]> = {
-      admin: [
-        'dashboard_view', 'employees_view', 'employees_manage',
-        'clients_view', 'clients_manage', 'projects_view', 'projects_manage',
-        'working_hours_view', 'working_hours_manage', 'working_hours_approve',
-        'roster_view', 'roster_manage', 'payroll_view', 'payroll_manage',
-        'payroll_process', 'bank_balance_view', 'bank_balance_manage',
-        'reports_view', 'reports_generate', 'notifications_view'
-      ],
-      employee: [
-        'dashboard_view', 'working_hours_view', 'roster_view', 'notifications_view'
-      ],
-      accountant: [
-        'dashboard_view', 'payroll_view', 'payroll_manage', 'payroll_process',
-        'bank_balance_view', 'bank_balance_manage', 'reports_view', 'reports_generate',
-        'working_hours_view', 'working_hours_approve', 'notifications_view'
-      ],
-      operation: [
-        'dashboard_view', 'employees_view', 'projects_view', 'projects_manage',
-        'working_hours_view', 'working_hours_manage', 'roster_view', 'roster_manage',
-        'notifications_view'
-      ],
-      sales_manager: [
-        'dashboard_view', 'clients_view', 'clients_manage', 'projects_view',
-        'projects_manage', 'reports_view', 'reports_generate', 'notifications_view'
-      ]
-    };
+  const fetchUserPermissions = async (role: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('role_permissions')
+        .select('permission')
+        .eq('role', role);
 
-    return rolePermissions[profile.role]?.includes(permission) || false;
+      if (error) {
+        console.error('Error fetching permissions:', error);
+        return;
+      }
+
+      const permissions = data?.map(item => item.permission) || [];
+      setUserPermissions(permissions);
+    } catch (error) {
+      console.error('Error fetching permissions:', error);
+    }
+  };
+
+  const hasPermission = (permission: string): boolean => {
+    return userPermissions.includes(permission);
   };
 
   const signOut = async () => {
@@ -93,6 +88,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setUser(null);
       setProfile(null);
       setSession(null);
+      setUserPermissions([]);
       
       toast({
         title: "Signed out successfully",
@@ -121,6 +117,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           }, 0);
         } else {
           setProfile(null);
+          setUserPermissions([]);
         }
         
         setLoading(false);
@@ -149,7 +146,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       session,
       loading,
       signOut,
-      hasPermission
+      hasPermission,
+      userPermissions
     }}>
       {children}
     </AuthContext.Provider>

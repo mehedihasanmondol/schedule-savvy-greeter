@@ -13,6 +13,7 @@ import { Reports } from "@/components/Reports";
 import { UserMenu } from "@/components/UserMenu";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { RoleDashboardRouter } from "@/components/RoleDashboardRouter";
+import { RolePermissionsManager } from "@/components/RolePermissionsManager";
 import { useAuth } from "@/hooks/useAuth";
 
 const Index = () => {
@@ -73,6 +74,12 @@ const Index = () => {
         return (
           <ProtectedRoute requiredPermission="reports_view">
             <Reports />
+          </ProtectedRoute>
+        );
+      case "permissions":
+        return (
+          <ProtectedRoute requiredPermission="employees_manage">
+            <RolePermissionsManager />
           </ProtectedRoute>
         );
       default:
