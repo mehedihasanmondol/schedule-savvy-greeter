@@ -1,4 +1,3 @@
-
 import { useState, useEffect, createContext, useContext } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -50,14 +49,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       
       // Fetch user permissions from database
       if (data?.role) {
-        await fetchUserPermissions(data.role);
+        await fetchUserPermissions(data.role as 'admin' | 'employee' | 'accountant' | 'operation' | 'sales_manager');
       }
     } catch (error) {
       console.error('Error fetching profile:', error);
     }
   };
 
-  const fetchUserPermissions = async (role: string) => {
+  const fetchUserPermissions = async (role: 'admin' | 'employee' | 'accountant' | 'operation' | 'sales_manager') => {
     try {
       const { data, error } = await supabase
         .from('role_permissions')

@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { Sidebar } from "@/components/Sidebar";
 import { Dashboard } from "@/components/Dashboard";
+import { PersonalDashboard } from "@/components/PersonalDashboard";
 import { EmployeeManagement } from "@/components/EmployeeManagement";
 import { ClientManagement } from "@/components/ClientManagement";
 import { ProjectManagement } from "@/components/ProjectManagement";
@@ -23,11 +24,19 @@ const Index = () => {
   const renderActiveComponent = () => {
     switch (activeTab) {
       case "dashboard":
-        return (
-          <ProtectedRoute requiredPermission="dashboard_view">
-            <Dashboard />
-          </ProtectedRoute>
-        );
+        // Check if user has permission for default dashboard, otherwise show personal dashboard
+        if (hasPermission("dashboard_view")) {
+          return (
+            <ProtectedRoute requiredPermission="dashboard_view">
+              <Dashboard />
+            </ProtectedRoute>
+          );
+        } else {
+          // Show personal dashboard for users without general dashboard permission
+          return <PersonalDashboard />;
+        }
+      case "personal-dashboard":
+        return <PersonalDashboard />;
       case "employees":
         return (
           <ProtectedRoute requiredPermission="employees_view">
@@ -83,11 +92,16 @@ const Index = () => {
           </ProtectedRoute>
         );
       default:
-        return (
-          <ProtectedRoute requiredPermission="dashboard_view">
-            <Dashboard />
-          </ProtectedRoute>
-        );
+        // Default to personal dashboard for users without general dashboard access
+        if (hasPermission("dashboard_view")) {
+          return (
+            <ProtectedRoute requiredPermission="dashboard_view">
+              <Dashboard />
+            </ProtectedRoute>
+          );
+        } else {
+          return <PersonalDashboard />;
+        }
     }
   };
 
