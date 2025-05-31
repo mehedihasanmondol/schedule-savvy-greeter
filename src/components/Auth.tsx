@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,6 +7,8 @@ import { Separator } from "@/components/ui/separator";
 import { LogIn, Mail, User, UserPlus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import { useEffect } from "react";
 
 export const Auth = () => {
   const [loading, setLoading] = useState(false);
@@ -16,6 +17,15 @@ export const Auth = () => {
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const { toast } = useToast();
+  const { user, profile } = useAuth();
+
+  // Redirect authenticated users to their dashboard
+  useEffect(() => {
+    if (user && profile) {
+      // Redirect based on role permissions or to default dashboard
+      window.location.href = "/";
+    }
+  }, [user, profile]);
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,6 +64,8 @@ export const Auth = () => {
           title: "Welcome back!",
           description: "You have successfully signed in."
         });
+
+        // Note: Redirection will be handled by the useEffect above once auth state updates
       }
     } catch (error: any) {
       toast({

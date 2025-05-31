@@ -12,6 +12,7 @@ import { BankBalance } from "@/components/BankBalance";
 import { Reports } from "@/components/Reports";
 import { UserMenu } from "@/components/UserMenu";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { RoleDashboardRouter } from "@/components/RoleDashboardRouter";
 import { useAuth } from "@/hooks/useAuth";
 
 const Index = () => {
@@ -86,6 +87,7 @@ const Index = () => {
   return (
     <ProtectedRoute>
       <div className="flex h-screen bg-gray-100">
+        <RoleDashboardRouter activeTab={activeTab} setActiveTab={setActiveTab} />
         <Sidebar 
           activeTab={activeTab} 
           onTabChange={setActiveTab}
