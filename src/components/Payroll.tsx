@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,12 +8,12 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Plus, DollarSign, Calendar, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { Payroll, Profile } from "@/types/database";
+import type { Payroll as PayrollType, Profile } from "@/types/database";
 import { useToast } from "@/hooks/use-toast";
 import { ProfileSelector } from "@/components/common/ProfileSelector";
 
-export const Payroll = () => {
-  const [payrolls, setPayrolls] = useState<Payroll[]>([]);
+export const PayrollComponent = () => {
+  const [payrolls, setPayrolls] = useState<PayrollType[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -55,7 +54,7 @@ export const Payroll = () => {
         profiles: Array.isArray(payroll.profiles) ? payroll.profiles[0] : payroll.profiles
       }));
       
-      setPayrolls(payrollData as Payroll[]);
+      setPayrolls(payrollData as PayrollType[]);
     } catch (error) {
       console.error('Error fetching payrolls:', error);
       toast({
