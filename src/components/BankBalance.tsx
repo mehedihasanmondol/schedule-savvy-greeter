@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,10 +6,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Plus, TrendingUp, TrendingDown, Building, DollarSign } from "lucide-react";
+import { Plus, TrendingUp, TrendingDown, Building, DollarSign, Minus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { BankAccount, BankTransaction, Profile, Client, Project } from "@/types/database";
 import { useToast } from "@/hooks/use-toast";
+import { ProfileSelector } from "@/components/common/ProfileSelector";
 
 export const BankBalance = () => {
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
@@ -21,6 +21,8 @@ export const BankBalance = () => {
   const [loading, setLoading] = useState(true);
   const [isTransactionDialogOpen, setIsTransactionDialogOpen] = useState(false);
   const [isBankDialogOpen, setIsBankDialogOpen] = useState(false);
+  const [isDepositDialogOpen, setIsDepositDialogOpen] = useState(false);
+  const [isWithdrawDialogOpen, setIsWithdrawDialogOpen] = useState(false);
   const { toast } = useToast();
 
   const [transactionFormData, setTransactionFormData] = useState({
@@ -35,8 +37,16 @@ export const BankBalance = () => {
     project_id: ""
   });
 
+  const [quickTransactionData, setQuickTransactionData] = useState({
+    bank_account_id: "",
+    description: "",
+    amount: 0,
+    category: "",
+    date: new Date().toISOString().split('T')[0],
+    profile_id: ""
+  });
+
   const [bankFormData, setBankFormData] = useState({
-    profile_id: "",
     bank_name: "",
     account_number: "",
     bsb_code: "",
@@ -70,10 +80,7 @@ export const BankBalance = () => {
     try {
       const { data, error } = await supabase
         .from('bank_accounts')
-        .select(`
-          *,
-          profiles!bank_accounts_profile_id_fkey (id, full_name)
-        `)
+        .select('*')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -98,7 +105,6 @@ export const BankBalance = () => {
 
       if (error) throw error;
       
-      // Handle the data safely with proper type checking
       const transactionData = (data || []).map(transaction => ({
         ...transaction,
         clients: Array.isArray(transaction.clients) ? transaction.clients[0] : transaction.clients,
@@ -169,23 +175,50 @@ export const BankBalance = () => {
       toast({ title: "Success", description: "Transaction added successfully" });
       
       setIsTransactionDialogOpen(false);
-      setTransactionFormData({
-        bank_account_id: "",
-        description: "",
-        amount: 0,
-        type: "deposit",
-        category: "",
-        date: new Date().toISOString().split('T')[0],
-        profile_id: "",
-        client_id: "",
-        project_id: ""
-      });
+      resetTransactionForm();
       fetchTransactions();
     } catch (error) {
       console.error('Error adding transaction:', error);
       toast({
         title: "Error",
         description: "Failed to add transaction",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleQuickTransaction = async (type: 'deposit' | 'withdrawal') => {
+    setLoading(true);
+
+    try {
+      const transactionData = {
+        ...quickTransactionData,
+        type,
+        profile_id: quickTransactionData.profile_id || null
+      };
+
+      const { error } = await supabase
+        .from('bank_transactions')
+        .insert([transactionData]);
+
+      if (error) throw error;
+      toast({ title: "Success", description: `${type === 'deposit' ? 'Deposit' : 'Withdrawal'} added successfully` });
+      
+      if (type === 'deposit') {
+        setIsDepositDialogOpen(false);
+      } else {
+        setIsWithdrawDialogOpen(false);
+      }
+      
+      resetQuickTransactionForm();
+      fetchTransactions();
+    } catch (error) {
+      console.error('Error adding quick transaction:', error);
+      toast({
+        title: "Error",
+        description: `Failed to add ${type}`,
         variant: "destructive"
       });
     } finally {
@@ -206,16 +239,7 @@ export const BankBalance = () => {
       toast({ title: "Success", description: "Bank account added successfully" });
       
       setIsBankDialogOpen(false);
-      setBankFormData({
-        profile_id: "",
-        bank_name: "",
-        account_number: "",
-        bsb_code: "",
-        swift_code: "",
-        account_holder_name: "",
-        opening_balance: 0,
-        is_primary: false
-      });
+      resetBankForm();
       fetchBankAccounts();
     } catch (error) {
       console.error('Error adding bank account:', error);
@@ -227,6 +251,43 @@ export const BankBalance = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const resetTransactionForm = () => {
+    setTransactionFormData({
+      bank_account_id: "",
+      description: "",
+      amount: 0,
+      type: "deposit",
+      category: "",
+      date: new Date().toISOString().split('T')[0],
+      profile_id: "",
+      client_id: "",
+      project_id: ""
+    });
+  };
+
+  const resetQuickTransactionForm = () => {
+    setQuickTransactionData({
+      bank_account_id: "",
+      description: "",
+      amount: 0,
+      category: "",
+      date: new Date().toISOString().split('T')[0],
+      profile_id: ""
+    });
+  };
+
+  const resetBankForm = () => {
+    setBankFormData({
+      bank_name: "",
+      account_number: "",
+      bsb_code: "",
+      swift_code: "",
+      account_holder_name: "",
+      opening_balance: 0,
+      is_primary: false
+    });
   };
 
   const calculateBankBalance = (bankAccountId: string) => {
@@ -260,6 +321,158 @@ export const BankBalance = () => {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Dialog open={isDepositDialogOpen} onOpenChange={setIsDepositDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="flex items-center gap-2 bg-green-600 hover:bg-green-700">
+                <Plus className="h-4 w-4" />
+                Deposit
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Quick Deposit</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={(e) => { e.preventDefault(); handleQuickTransaction('deposit'); }} className="space-y-4">
+                <div>
+                  <Label htmlFor="deposit_bank_account">Bank Account</Label>
+                  <Select value={quickTransactionData.bank_account_id} onValueChange={(value) => setQuickTransactionData({ ...quickTransactionData, bank_account_id: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select bank account" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {bankAccounts.map((account) => (
+                        <SelectItem key={account.id} value={account.id}>
+                          {account.bank_name} - {account.account_number}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <ProfileSelector
+                  profiles={profiles}
+                  selectedProfileId={quickTransactionData.profile_id}
+                  onProfileSelect={(profileId) => setQuickTransactionData({ ...quickTransactionData, profile_id: profileId })}
+                  label="Employee (Optional)"
+                  placeholder="Select employee"
+                  showRoleFilter={true}
+                />
+
+                <div>
+                  <Label htmlFor="deposit_description">Description</Label>
+                  <Input
+                    id="deposit_description"
+                    value={quickTransactionData.description}
+                    onChange={(e) => setQuickTransactionData({ ...quickTransactionData, description: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="deposit_amount">Amount</Label>
+                  <Input
+                    id="deposit_amount"
+                    type="number"
+                    step="0.01"
+                    value={quickTransactionData.amount}
+                    onChange={(e) => setQuickTransactionData({ ...quickTransactionData, amount: parseFloat(e.target.value) || 0 })}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="deposit_category">Category</Label>
+                  <Input
+                    id="deposit_category"
+                    value={quickTransactionData.category}
+                    onChange={(e) => setQuickTransactionData({ ...quickTransactionData, category: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <Button type="submit" disabled={loading} className="w-full bg-green-600 hover:bg-green-700">
+                  {loading ? "Adding..." : "Add Deposit"}
+                </Button>
+              </form>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={isWithdrawDialogOpen} onOpenChange={setIsWithdrawDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="flex items-center gap-2 border-red-600 text-red-600 hover:bg-red-50">
+                <Minus className="h-4 w-4" />
+                Withdraw
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Quick Withdrawal</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={(e) => { e.preventDefault(); handleQuickTransaction('withdrawal'); }} className="space-y-4">
+                <div>
+                  <Label htmlFor="withdraw_bank_account">Bank Account</Label>
+                  <Select value={quickTransactionData.bank_account_id} onValueChange={(value) => setQuickTransactionData({ ...quickTransactionData, bank_account_id: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select bank account" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {bankAccounts.map((account) => (
+                        <SelectItem key={account.id} value={account.id}>
+                          {account.bank_name} - {account.account_number}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <ProfileSelector
+                  profiles={profiles}
+                  selectedProfileId={quickTransactionData.profile_id}
+                  onProfileSelect={(profileId) => setQuickTransactionData({ ...quickTransactionData, profile_id: profileId })}
+                  label="Employee (Optional)"
+                  placeholder="Select employee"
+                  showRoleFilter={true}
+                />
+
+                <div>
+                  <Label htmlFor="withdraw_description">Description</Label>
+                  <Input
+                    id="withdraw_description"
+                    value={quickTransactionData.description}
+                    onChange={(e) => setQuickTransactionData({ ...quickTransactionData, description: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="withdraw_amount">Amount</Label>
+                  <Input
+                    id="withdraw_amount"
+                    type="number"
+                    step="0.01"
+                    value={quickTransactionData.amount}
+                    onChange={(e) => setQuickTransactionData({ ...quickTransactionData, amount: parseFloat(e.target.value) || 0 })}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="withdraw_category">Category</Label>
+                  <Input
+                    id="withdraw_category"
+                    value={quickTransactionData.category}
+                    onChange={(e) => setQuickTransactionData({ ...quickTransactionData, category: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <Button type="submit" disabled={loading} className="w-full bg-red-600 hover:bg-red-700">
+                  {loading ? "Adding..." : "Add Withdrawal"}
+                </Button>
+              </form>
+            </DialogContent>
+          </Dialog>
+
           <Dialog open={isBankDialogOpen} onOpenChange={setIsBankDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" className="flex items-center gap-2">
@@ -272,22 +485,6 @@ export const BankBalance = () => {
                 <DialogTitle>Add Bank Account</DialogTitle>
               </DialogHeader>
               <form onSubmit={handleBankSubmit} className="space-y-4">
-                <div>
-                  <Label htmlFor="profile_id">Profile</Label>
-                  <Select value={bankFormData.profile_id} onValueChange={(value) => setBankFormData({ ...bankFormData, profile_id: value })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select profile" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {profiles.map((profile) => (
-                        <SelectItem key={profile.id} value={profile.id}>
-                          {profile.full_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
                 <div>
                   <Label htmlFor="bank_name">Bank Name</Label>
                   <Input
@@ -383,6 +580,15 @@ export const BankBalance = () => {
                   </Select>
                 </div>
 
+                <ProfileSelector
+                  profiles={profiles}
+                  selectedProfileId={transactionFormData.profile_id}
+                  onProfileSelect={(profileId) => setTransactionFormData({ ...transactionFormData, profile_id: profileId })}
+                  label="Employee (Optional)"
+                  placeholder="Select employee"
+                  showRoleFilter={true}
+                />
+
                 <div>
                   <Label htmlFor="description">Description</Label>
                   <Input
@@ -449,6 +655,7 @@ export const BankBalance = () => {
         </div>
       </div>
 
+      
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
