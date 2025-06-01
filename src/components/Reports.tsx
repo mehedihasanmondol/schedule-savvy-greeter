@@ -5,11 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FileText, Download, TrendingUp, Users, Clock, DollarSign } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { WorkingHour, Employee, Client, Project, BankTransaction } from "@/types/database";
+import { WorkingHour, Profile, Client, Project, BankTransaction } from "@/types/database";
 
 export const Reports = () => {
   const [workingHours, setWorkingHours] = useState<WorkingHour[]>([]);
-  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [transactions, setTransactions] = useState<BankTransaction[]>([]);
@@ -51,29 +51,38 @@ export const Reports = () => {
     try {
       const dateRange = getDateRange();
       
-      // Fetch working hours with employee, client, and project details
+      // Fetch working hours with profile, client, and project details
       const { data: hoursData, error: hoursError } = await supabase
         .from('working_hours')
         .select(`
           *,
-          employees (id, name, hourly_rate),
-          clients (id, company),
-          projects (id, name)
+          profiles!working_hours_profile_id_fkey (id, full_name, role),
+          clients!working_hours_client_id_fkey (id, company),
+          projects!working_hours_project_id_fkey (id, name)
         `)
         .gte('date', dateRange.start)
         .lte('date', dateRange.end);
 
       if (hoursError) throw hoursError;
-      setWorkingHours((hoursData || []) as WorkingHour[]);
+      
+      // Handle the data safely with proper type checking
+      const workingHoursData = (hoursData || []).map(wh => ({
+        ...wh,
+        profiles: Array.isArray(wh.profiles) ? wh.profiles[0] : wh.profiles,
+        clients: Array.isArray(wh.clients) ? wh.clients[0] : wh.clients,
+        projects: Array.isArray(wh.projects) ? wh.projects[0] : wh.projects
+      }));
+      
+      setWorkingHours(workingHoursData as WorkingHour[]);
 
-      // Fetch employees
-      const { data: employeesData, error: employeesError } = await supabase
-        .from('employees')
+      // Fetch profiles
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
         .select('*')
-        .eq('status', 'active');
+        .eq('is_active', true);
 
-      if (employeesError) throw employeesError;
-      setEmployees((employeesData || []) as Employee[]);
+      if (profilesError) throw profilesError;
+      setProfiles(profilesData as Profile[]);
 
       // Fetch clients
       const { data: clientsData, error: clientsError } = await supabase
@@ -81,7 +90,7 @@ export const Reports = () => {
         .select('*');
 
       if (clientsError) throw clientsError;
-      setClients((clientsData || []) as Client[]);
+      setClients(clientsData as Client[]);
 
       // Fetch projects
       const { data: projectsData, error: projectsError } = await supabase
@@ -89,7 +98,7 @@ export const Reports = () => {
         .select('*');
 
       if (projectsError) throw projectsError;
-      setProjects((projectsData || []) as Project[]);
+      setProjects(projectsData as Project[]);
 
       // Fetch bank transactions
       const { data: transactionsData, error: transactionsError } = await supabase
@@ -99,7 +108,7 @@ export const Reports = () => {
         .lte('date', dateRange.end);
 
       if (transactionsError) throw transactionsError;
-      setTransactions((transactionsData || []) as BankTransaction[]);
+      setTransactions(transactionsData as BankTransaction[]);
 
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -109,9 +118,9 @@ export const Reports = () => {
   };
 
   const totalHours = workingHours.reduce((sum, wh) => sum + wh.total_hours, 0);
-  const activeEmployees = employees.filter(e => e.status === 'active').length;
+  const activeProfiles = profiles.filter(p => p.is_active).length;
   const totalPayroll = workingHours.reduce((sum, wh) => {
-    const hourlyRate = wh.employees?.hourly_rate || 0;
+    const hourlyRate = wh.profiles?.hourly_rate || 25;
     return sum + (wh.total_hours * hourlyRate);
   }, 0);
   const activeProjects = projects.filter(p => p.status === 'active').length;
@@ -124,15 +133,15 @@ export const Reports = () => {
     .filter(t => t.type === 'withdrawal')
     .reduce((sum, t) => sum + t.amount, 0);
 
-  // Group hours by employee
-  const hoursByEmployee = employees.map(employee => {
-    const employeeHours = workingHours.filter(wh => wh.employee_id === employee.id);
-    const totalHours = employeeHours.reduce((sum, wh) => sum + wh.total_hours, 0);
+  // Group hours by profile
+  const hoursByProfile = profiles.map(profile => {
+    const profileHours = workingHours.filter(wh => wh.profile_id === profile.id);
+    const totalHours = profileHours.reduce((sum, wh) => sum + wh.total_hours, 0);
     const maxHours = period === 'week' ? 40 : period === 'month' ? 160 : 320;
     const percentage = Math.min((totalHours / maxHours) * 100, 100);
     
     return {
-      name: employee.name,
+      name: profile.full_name || 'Unnamed User',
       hours: totalHours,
       percentage
     };
@@ -142,7 +151,7 @@ export const Reports = () => {
   const hoursByProject = projects.map(project => {
     const projectHours = workingHours.filter(wh => wh.project_id === project.id);
     const totalHours = projectHours.reduce((sum, wh) => sum + wh.total_hours, 0);
-    const maxHours = 200; // Assume max 200 hours per project for percentage calculation
+    const maxHours = 200;
     const percentage = Math.min((totalHours / maxHours) * 100, 100);
     
     return {
@@ -193,11 +202,11 @@ export const Reports = () => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Active Employees</CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-600">Active Profiles</CardTitle>
             <Users className="h-5 w-5 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-gray-900">{activeEmployees}</div>
+            <div className="text-2xl font-bold text-gray-900">{activeProfiles}</div>
             <p className="text-xs text-muted-foreground">Currently active</p>
           </CardContent>
         </Card>
@@ -239,21 +248,21 @@ export const Reports = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>Hours by Employee</CardTitle>
+            <CardTitle>Hours by Profile</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {hoursByEmployee.map((employee) => (
-                <div key={employee.name} className="flex items-center justify-between">
-                  <span className="text-sm font-medium">{employee.name}</span>
+              {hoursByProfile.map((profile) => (
+                <div key={profile.name} className="flex items-center justify-between">
+                  <span className="text-sm font-medium">{profile.name}</span>
                   <div className="flex items-center gap-2">
                     <div className="w-24 bg-gray-200 rounded-full h-2">
                       <div 
                         className="bg-blue-600 h-2 rounded-full" 
-                        style={{ width: `${employee.percentage}%` }}
+                        style={{ width: `${profile.percentage}%` }}
                       ></div>
                     </div>
-                    <span className="text-sm text-gray-600">{employee.hours.toFixed(1)}h</span>
+                    <span className="text-sm text-gray-600">{profile.hours.toFixed(1)}h</span>
                   </div>
                 </div>
               ))}
@@ -295,7 +304,8 @@ export const Reports = () => {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-200">
-                  <th className="text-left py-3 px-4 font-medium text-gray-600">Employee</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-600">Profile</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-600">Role</th>
                   <th className="text-left py-3 px-4 font-medium text-gray-600">Total Hours</th>
                   <th className="text-left py-3 px-4 font-medium text-gray-600">Hourly Rate</th>
                   <th className="text-left py-3 px-4 font-medium text-gray-600">Total Earned</th>
@@ -303,17 +313,19 @@ export const Reports = () => {
                 </tr>
               </thead>
               <tbody>
-                {employees.map((employee) => {
-                  const employeeHours = workingHours.filter(wh => wh.employee_id === employee.id);
-                  const totalHours = employeeHours.reduce((sum, wh) => sum + wh.total_hours, 0);
-                  const totalEarned = totalHours * employee.hourly_rate;
-                  const uniqueProjects = [...new Set(employeeHours.map(wh => wh.project_id))];
+                {profiles.map((profile) => {
+                  const profileHours = workingHours.filter(wh => wh.profile_id === profile.id);
+                  const totalHours = profileHours.reduce((sum, wh) => sum + wh.total_hours, 0);
+                  const hourlyRate = profile.hourly_rate || 25;
+                  const totalEarned = totalHours * hourlyRate;
+                  const uniqueProjects = [...new Set(profileHours.map(wh => wh.project_id))];
                   
                   return (
-                    <tr key={employee.id} className="border-b border-gray-100">
-                      <td className="py-3 px-4 font-medium text-gray-900">{employee.name}</td>
+                    <tr key={profile.id} className="border-b border-gray-100">
+                      <td className="py-3 px-4 font-medium text-gray-900">{profile.full_name || 'Unnamed User'}</td>
+                      <td className="py-3 px-4 text-gray-600">{profile.role}</td>
                       <td className="py-3 px-4 text-gray-600">{totalHours.toFixed(1)}h</td>
-                      <td className="py-3 px-4 text-gray-600">${employee.hourly_rate}/hr</td>
+                      <td className="py-3 px-4 text-gray-600">${hourlyRate}/hr</td>
                       <td className="py-3 px-4 font-medium text-gray-900">${totalEarned.toLocaleString()}</td>
                       <td className="py-3 px-4 text-gray-600">{uniqueProjects.length}</td>
                     </tr>

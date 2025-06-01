@@ -3,130 +3,68 @@ import { useState } from "react";
 import { Sidebar } from "@/components/Sidebar";
 import { Dashboard } from "@/components/Dashboard";
 import { PersonalDashboard } from "@/components/PersonalDashboard";
-import { EmployeeManagement } from "@/components/EmployeeManagement";
+import { ProfileManagement } from "@/components/ProfileManagement";
 import { ClientManagement } from "@/components/ClientManagement";
 import { ProjectManagement } from "@/components/ProjectManagement";
 import { WorkingHours } from "@/components/WorkingHours";
 import { Roster } from "@/components/Roster";
 import { PayrollComponent } from "@/components/Payroll";
-import { BankBalance } from "@/components/BankBalance";
+import { Notifications } from "@/components/Notifications";
 import { Reports } from "@/components/Reports";
-import { UserMenu } from "@/components/UserMenu";
-import { ProtectedRoute } from "@/components/ProtectedRoute";
-import { RoleDashboardRouter } from "@/components/RoleDashboardRouter";
+import { BankBalance } from "@/components/BankBalance";
 import { RolePermissionsManager } from "@/components/RolePermissionsManager";
+import { UserMenu } from "@/components/UserMenu";
+import { RoleDashboardRouter } from "@/components/RoleDashboardRouter";
 import { useAuth } from "@/hooks/useAuth";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
   const { hasPermission } = useAuth();
 
-  const renderActiveComponent = () => {
+  const renderContent = () => {
     switch (activeTab) {
       case "dashboard":
-        // Check if user has permission for default dashboard, otherwise show personal dashboard
-        if (hasPermission("dashboard_view")) {
-          return (
-            <ProtectedRoute requiredPermission="dashboard_view">
-              <Dashboard />
-            </ProtectedRoute>
-          );
-        } else {
-          // Show personal dashboard for users without general dashboard permission
-          return <PersonalDashboard />;
-        }
+        return <Dashboard />;
       case "personal-dashboard":
         return <PersonalDashboard />;
-      case "employees":
-        return (
-          <ProtectedRoute requiredPermission="employees_view">
-            <EmployeeManagement />
-          </ProtectedRoute>
-        );
+      case "profiles":
+        return <ProfileManagement />;
       case "clients":
-        return (
-          <ProtectedRoute requiredPermission="clients_view">
-            <ClientManagement />
-          </ProtectedRoute>
-        );
+        return <ClientManagement />;
       case "projects":
-        return (
-          <ProtectedRoute requiredPermission="projects_view">
-            <ProjectManagement />
-          </ProtectedRoute>
-        );
+        return <ProjectManagement />;
       case "working-hours":
-        return (
-          <ProtectedRoute requiredPermission="working_hours_view">
-            <WorkingHours />
-          </ProtectedRoute>
-        );
+        return <WorkingHours />;
       case "roster":
-        return (
-          <ProtectedRoute requiredPermission="roster_view">
-            <Roster />
-          </ProtectedRoute>
-        );
+        return <Roster />;
       case "payroll":
-        return (
-          <ProtectedRoute requiredPermission="payroll_view">
-            <PayrollComponent />
-          </ProtectedRoute>
-        );
-      case "bank-balance":
-        return (
-          <ProtectedRoute requiredPermission="bank_balance_view">
-            <BankBalance />
-          </ProtectedRoute>
-        );
+        return <PayrollComponent />;
+      case "notifications":
+        return <Notifications />;
       case "reports":
-        return (
-          <ProtectedRoute requiredPermission="reports_view">
-            <Reports />
-          </ProtectedRoute>
-        );
+        return <Reports />;
+      case "bank-balance":
+        return <BankBalance />;
       case "permissions":
-        return (
-          <ProtectedRoute requiredPermission="employees_manage">
-            <RolePermissionsManager />
-          </ProtectedRoute>
-        );
+        return <RolePermissionsManager />;
       default:
-        // Default to personal dashboard for users without general dashboard access
-        if (hasPermission("dashboard_view")) {
-          return (
-            <ProtectedRoute requiredPermission="dashboard_view">
-              <Dashboard />
-            </ProtectedRoute>
-          );
-        } else {
-          return <PersonalDashboard />;
-        }
+        return <Dashboard />;
     }
   };
 
   return (
-    <ProtectedRoute>
-      <div className="flex h-screen bg-gray-100">
-        <RoleDashboardRouter activeTab={activeTab} setActiveTab={setActiveTab} />
-        <Sidebar 
-          activeTab={activeTab} 
-          onTabChange={setActiveTab}
-          hasPermission={hasPermission}
-        />
-        <div className="flex-1 flex flex-col overflow-hidden ml-64">
-          <header className="bg-white shadow-sm border-b px-6 py-4">
-            <div className="flex justify-between items-center">
-              <h1 className="text-2xl font-bold text-gray-900">Schedule & Payroll Manager</h1>
-              <UserMenu />
-            </div>
-          </header>
-          <main className="flex-1 overflow-auto p-6">
-            {renderActiveComponent()}
-          </main>
+    <div className="flex h-screen bg-gray-50">
+      <Sidebar activeTab={activeTab} onTabChange={setActiveTab} hasPermission={hasPermission} />
+      <div className="flex-1 ml-64 overflow-auto">
+        <div className="flex justify-end p-4">
+          <UserMenu />
+        </div>
+        <div className="p-6">
+          <RoleDashboardRouter activeTab={activeTab} setActiveTab={setActiveTab} />
+          {renderContent()}
         </div>
       </div>
-    </ProtectedRoute>
+    </div>
   );
 };
 

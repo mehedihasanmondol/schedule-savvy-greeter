@@ -20,7 +20,7 @@ export const RoleDashboardRouter = ({ activeTab, setActiveTab }: RoleDashboardRo
 
       // Determine the best default tab based on user role and permissions
       if (hasPermission("employees_manage")) {
-        defaultTab = "employees";
+        defaultTab = "profiles";
       } else if (hasPermission("clients_manage")) {
         defaultTab = "clients";
       } else if (hasPermission("projects_manage")) {

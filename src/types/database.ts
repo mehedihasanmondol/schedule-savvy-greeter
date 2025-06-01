@@ -1,12 +1,18 @@
 
-export interface Employee {
+export interface Profile {
   id: string;
-  name: string;
+  full_name: string;
   email: string;
   phone?: string;
-  role: string;
-  hourly_rate: number;
-  status: 'active' | 'inactive';
+  role: 'admin' | 'employee' | 'accountant' | 'operation' | 'sales_manager';
+  avatar_url: string | null;
+  is_active: boolean;
+  full_address?: string;
+  employment_type?: 'full-time' | 'part-time' | 'casual';
+  hourly_rate?: number;
+  salary?: number;
+  tax_file_number?: string;
+  start_date?: string;
   created_at: string;
   updated_at: string;
 }
@@ -38,7 +44,7 @@ export interface Project {
 
 export interface WorkingHour {
   id: string;
-  employee_id: string;
+  profile_id: string;
   client_id: string;
   project_id: string;
   date: string;
@@ -46,11 +52,26 @@ export interface WorkingHour {
   end_time: string;
   total_hours: number;
   status: 'pending' | 'approved' | 'rejected';
+  roster_id?: string;
   created_at: string;
   updated_at: string;
-  employees?: Employee;
+  profiles?: Profile;
   clients?: Client;
   projects?: Project;
+}
+
+export interface BankAccount {
+  id: string;
+  profile_id: string;
+  bank_name: string;
+  account_number: string;
+  bsb_code?: string;
+  swift_code?: string;
+  account_holder_name: string;
+  opening_balance: number;
+  is_primary: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface BankTransaction {
@@ -64,15 +85,36 @@ export interface BankTransaction {
   updated_at: string;
   client_id?: string;
   project_id?: string;
-  employee_id?: string;
+  profile_id?: string;
+  bank_account_id?: string;
   clients?: Client;
   projects?: Project;
-  employees?: Employee;
+  profiles?: Profile;
+  bank_accounts?: BankAccount;
+}
+
+export interface Roster {
+  id: string;
+  profile_id: string;
+  client_id: string;
+  project_id: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+  total_hours: number;
+  status: 'pending' | 'confirmed' | 'cancelled';
+  notes?: string;
+  is_locked: boolean;
+  created_at: string;
+  updated_at: string;
+  profiles?: Profile;
+  clients?: Client;
+  projects?: Project;
 }
 
 export interface Payroll {
   id: string;
-  employee_id: string;
+  profile_id: string;
   pay_period_start: string;
   pay_period_end: string;
   total_hours: number;
@@ -83,5 +125,11 @@ export interface Payroll {
   status: 'pending' | 'approved' | 'paid';
   created_at: string;
   updated_at: string;
-  employees?: Employee;
+  profiles?: Profile;
+}
+
+export interface RolePermission {
+  id: string;
+  role: 'admin' | 'employee' | 'accountant' | 'operation' | 'sales_manager';
+  permission: string;
 }

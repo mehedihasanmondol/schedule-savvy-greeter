@@ -40,8 +40,8 @@ export const Sidebar = ({ activeTab, onTabChange, hasPermission }: SidebarProps)
       permission: null // Always available to authenticated users
     },
     { 
-      id: "employees", 
-      label: "Employees", 
+      id: "profiles", 
+      label: "Profiles", 
       icon: Users,
       permission: "employees_view"
     },

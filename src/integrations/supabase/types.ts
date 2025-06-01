@@ -9,47 +9,107 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      bank_accounts: {
+        Row: {
+          account_holder_name: string
+          account_number: string
+          bank_name: string
+          bsb_code: string | null
+          created_at: string | null
+          id: string
+          is_primary: boolean | null
+          opening_balance: number | null
+          profile_id: string | null
+          swift_code: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          account_holder_name: string
+          account_number: string
+          bank_name: string
+          bsb_code?: string | null
+          created_at?: string | null
+          id?: string
+          is_primary?: boolean | null
+          opening_balance?: number | null
+          profile_id?: string | null
+          swift_code?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          account_holder_name?: string
+          account_number?: string
+          bank_name?: string
+          bsb_code?: string | null
+          created_at?: string | null
+          id?: string
+          is_primary?: boolean | null
+          opening_balance?: number | null
+          profile_id?: string | null
+          swift_code?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_accounts_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bank_transactions: {
         Row: {
           amount: number
+          bank_account_id: string | null
           category: string
           client_id: string | null
           created_at: string
           date: string
           description: string
-          employee_id: string | null
           id: string
+          profile_id: string | null
           project_id: string | null
           type: string
           updated_at: string
         }
         Insert: {
           amount: number
+          bank_account_id?: string | null
           category: string
           client_id?: string | null
           created_at?: string
           date?: string
           description: string
-          employee_id?: string | null
           id?: string
+          profile_id?: string | null
           project_id?: string | null
           type: string
           updated_at?: string
         }
         Update: {
           amount?: number
+          bank_account_id?: string | null
           category?: string
           client_id?: string | null
           created_at?: string
           date?: string
           description?: string
-          employee_id?: string | null
           id?: string
+          profile_id?: string | null
           project_id?: string | null
           type?: string
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "bank_transactions_bank_account_id_fkey"
+            columns: ["bank_account_id"]
+            isOneToOne: false
+            referencedRelation: "bank_accounts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "bank_transactions_client_id_fkey"
             columns: ["client_id"]
@@ -58,10 +118,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "bank_transactions_employee_id_fkey"
-            columns: ["employee_id"]
+            foreignKeyName: "bank_transactions_profile_id_fkey"
+            columns: ["profile_id"]
             isOneToOne: false
-            referencedRelation: "employees"
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -146,13 +206,13 @@ export type Database = {
         Row: {
           created_at: string
           deductions: number
-          employee_id: string
           gross_pay: number
           hourly_rate: number
           id: string
           net_pay: number
           pay_period_end: string
           pay_period_start: string
+          profile_id: string
           status: string
           total_hours: number
           updated_at: string
@@ -160,13 +220,13 @@ export type Database = {
         Insert: {
           created_at?: string
           deductions?: number
-          employee_id: string
           gross_pay?: number
           hourly_rate?: number
           id?: string
           net_pay?: number
           pay_period_end: string
           pay_period_start: string
+          profile_id: string
           status?: string
           total_hours?: number
           updated_at?: string
@@ -174,23 +234,23 @@ export type Database = {
         Update: {
           created_at?: string
           deductions?: number
-          employee_id?: string
           gross_pay?: number
           hourly_rate?: number
           id?: string
           net_pay?: number
           pay_period_end?: string
           pay_period_start?: string
+          profile_id?: string
           status?: string
           total_hours?: number
           updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "payroll_employee_id_fkey"
-            columns: ["employee_id"]
+            foreignKeyName: "payroll_profile_id_fkey"
+            columns: ["profile_id"]
             isOneToOne: false
-            referencedRelation: "employees"
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -199,31 +259,56 @@ export type Database = {
         Row: {
           avatar_url: string | null
           created_at: string | null
-          email: string | null
-          full_name: string | null
+          email: string
+          employment_type: Database["public"]["Enums"]["employment_type"] | null
+          full_address: string | null
+          full_name: string
+          hourly_rate: number | null
           id: string
           is_active: boolean | null
-          role: Database["public"]["Enums"]["user_role"] | null
+          phone: string | null
+          role: Database["public"]["Enums"]["user_role"]
+          salary: number | null
+          start_date: string | null
+          tax_file_number: string | null
           updated_at: string | null
         }
         Insert: {
           avatar_url?: string | null
           created_at?: string | null
-          email?: string | null
-          full_name?: string | null
+          email: string
+          employment_type?:
+            | Database["public"]["Enums"]["employment_type"]
+            | null
+          full_address?: string | null
+          full_name: string
+          hourly_rate?: number | null
           id: string
           is_active?: boolean | null
-          role?: Database["public"]["Enums"]["user_role"] | null
+          phone?: string | null
+          role?: Database["public"]["Enums"]["user_role"]
+          salary?: number | null
+          start_date?: string | null
+          tax_file_number?: string | null
           updated_at?: string | null
         }
         Update: {
           avatar_url?: string | null
           created_at?: string | null
-          email?: string | null
-          full_name?: string | null
+          email?: string
+          employment_type?:
+            | Database["public"]["Enums"]["employment_type"]
+            | null
+          full_address?: string | null
+          full_name?: string
+          hourly_rate?: number | null
           id?: string
           is_active?: boolean | null
-          role?: Database["public"]["Enums"]["user_role"] | null
+          phone?: string | null
+          role?: Database["public"]["Enums"]["user_role"]
+          salary?: number | null
+          start_date?: string | null
+          tax_file_number?: string | null
           updated_at?: string | null
         }
         Relationships: []
@@ -293,15 +378,86 @@ export type Database = {
         }
         Relationships: []
       }
+      rosters: {
+        Row: {
+          client_id: string
+          created_at: string | null
+          date: string
+          end_time: string
+          id: string
+          is_locked: boolean | null
+          notes: string | null
+          profile_id: string
+          project_id: string
+          start_time: string
+          status: string | null
+          total_hours: number
+          updated_at: string | null
+        }
+        Insert: {
+          client_id: string
+          created_at?: string | null
+          date: string
+          end_time: string
+          id?: string
+          is_locked?: boolean | null
+          notes?: string | null
+          profile_id: string
+          project_id: string
+          start_time: string
+          status?: string | null
+          total_hours: number
+          updated_at?: string | null
+        }
+        Update: {
+          client_id?: string
+          created_at?: string | null
+          date?: string
+          end_time?: string
+          id?: string
+          is_locked?: boolean | null
+          notes?: string | null
+          profile_id?: string
+          project_id?: string
+          start_time?: string
+          status?: string | null
+          total_hours?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rosters_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rosters_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rosters_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       working_hours: {
         Row: {
           client_id: string
           created_at: string
           date: string
-          employee_id: string
           end_time: string
           id: string
+          profile_id: string
           project_id: string
+          roster_id: string | null
           start_time: string
           status: string
           total_hours: number
@@ -311,10 +467,11 @@ export type Database = {
           client_id: string
           created_at?: string
           date: string
-          employee_id: string
           end_time: string
           id?: string
+          profile_id: string
           project_id: string
+          roster_id?: string | null
           start_time: string
           status?: string
           total_hours: number
@@ -324,10 +481,11 @@ export type Database = {
           client_id?: string
           created_at?: string
           date?: string
-          employee_id?: string
           end_time?: string
           id?: string
+          profile_id?: string
           project_id?: string
+          roster_id?: string | null
           start_time?: string
           status?: string
           total_hours?: number
@@ -342,10 +500,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "working_hours_employee_id_fkey"
-            columns: ["employee_id"]
+            foreignKeyName: "working_hours_profile_id_fkey"
+            columns: ["profile_id"]
             isOneToOne: false
-            referencedRelation: "employees"
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -353,6 +511,13 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "working_hours_roster_id_fkey"
+            columns: ["roster_id"]
+            isOneToOne: false
+            referencedRelation: "rosters"
             referencedColumns: ["id"]
           },
         ]
@@ -409,6 +574,7 @@ export type Database = {
         | "reports_view"
         | "reports_generate"
         | "notifications_view"
+      employment_type: "full-time" | "part-time" | "casual"
       user_role:
         | "admin"
         | "employee"
@@ -552,6 +718,7 @@ export const Constants = {
         "reports_generate",
         "notifications_view",
       ],
+      employment_type: ["full-time", "part-time", "casual"],
       user_role: [
         "admin",
         "employee",
