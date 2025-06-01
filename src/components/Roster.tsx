@@ -9,11 +9,14 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Calendar as CalendarIcon, Clock, User, Edit, AlertCircle } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Plus, Calendar as CalendarIcon, Clock, User, Edit, AlertCircle, CalendarRange } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { WorkingHour, Profile, Client, Project } from "@/types/database";
 import { useToast } from "@/hooks/use-toast";
 import { ProfileSelector } from "@/components/common/ProfileSelector";
+import { DateRange } from "react-day-picker";
+import { format, eachDayOfInterval, parseISO } from "date-fns";
 
 // Define a local interface for Roster to avoid naming conflicts
 interface RosterEntry {
@@ -36,7 +39,10 @@ interface RosterEntry {
 }
 
 export const Roster = () => {
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: new Date(),
+    to: new Date()
+  });
   const [rosters, setRosters] = useState<RosterEntry[]>([]);
   const [workingHours, setWorkingHours] = useState<WorkingHour[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -48,10 +54,11 @@ export const Roster = () => {
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
-    profile_id: "",
+    selected_profiles: [] as string[],
     client_id: "",
     project_id: "",
-    date: "",
+    start_date: "",
+    end_date: "",
     start_time: "",
     end_time: "",
     notes: "",
@@ -59,10 +66,10 @@ export const Roster = () => {
   });
 
   useEffect(() => {
-    if (selectedDate) {
+    if (dateRange?.from && dateRange?.to) {
       fetchRosterData();
     }
-  }, [selectedDate]);
+  }, [dateRange]);
 
   useEffect(() => {
     fetchProfiles();
@@ -71,13 +78,14 @@ export const Roster = () => {
   }, []);
 
   const fetchRosterData = async () => {
-    if (!selectedDate) return;
+    if (!dateRange?.from || !dateRange?.to) return;
     
     setLoading(true);
     try {
-      const dateStr = selectedDate.toISOString().split('T')[0];
+      const startDate = dateRange.from.toISOString().split('T')[0];
+      const endDate = dateRange.to.toISOString().split('T')[0];
       
-      // Fetch rosters for selected date
+      // Fetch rosters for date range
       const { data: rosterData, error: rosterError } = await supabase
         .from('rosters')
         .select(`
@@ -86,7 +94,9 @@ export const Roster = () => {
           clients!rosters_client_id_fkey (id, company),
           projects!rosters_project_id_fkey (id, name)
         `)
-        .eq('date', dateStr)
+        .gte('date', startDate)
+        .lte('date', endDate)
+        .order('date')
         .order('start_time');
 
       if (rosterError) throw rosterError;
@@ -100,7 +110,7 @@ export const Roster = () => {
       
       setRosters(rosterEntries as RosterEntry[]);
 
-      // Fetch working hours for selected date to check approval status
+      // Fetch working hours for date range
       const { data: workingHoursData, error: whError } = await supabase
         .from('working_hours')
         .select(`
@@ -109,7 +119,9 @@ export const Roster = () => {
           clients!working_hours_client_id_fkey (id, company),
           projects!working_hours_project_id_fkey (id, name)
         `)
-        .eq('date', dateStr)
+        .gte('date', startDate)
+        .lte('date', endDate)
+        .order('date')
         .order('start_time');
 
       if (whError) throw whError;
@@ -209,12 +221,19 @@ export const Roster = () => {
     try {
       const totalHours = calculateTotalHours(formData.start_time, formData.end_time);
       
-      const rosterData = {
-        ...formData,
-        total_hours: totalHours
-      };
-
       if (editingRoster) {
+        // Update existing roster
+        const rosterData = {
+          client_id: formData.client_id,
+          project_id: formData.project_id,
+          date: formData.start_date,
+          start_time: formData.start_time,
+          end_time: formData.end_time,
+          total_hours: totalHours,
+          notes: formData.notes,
+          status: formData.status
+        };
+
         const { error } = await supabase
           .from('rosters')
           .update(rosterData)
@@ -223,12 +242,46 @@ export const Roster = () => {
         if (error) throw error;
         toast({ title: "Success", description: "Roster updated successfully" });
       } else {
+        // Create new rosters for multiple employees and date range
+        if (formData.selected_profiles.length === 0) {
+          toast({
+            title: "Error",
+            description: "Please select at least one employee",
+            variant: "destructive"
+          });
+          return;
+        }
+
+        const startDate = parseISO(formData.start_date);
+        const endDate = parseISO(formData.end_date);
+        const dateArray = eachDayOfInterval({ start: startDate, end: endDate });
+
+        const rosterEntries = [];
+        for (const profileId of formData.selected_profiles) {
+          for (const date of dateArray) {
+            rosterEntries.push({
+              profile_id: profileId,
+              client_id: formData.client_id,
+              project_id: formData.project_id,
+              date: date.toISOString().split('T')[0],
+              start_time: formData.start_time,
+              end_time: formData.end_time,
+              total_hours: totalHours,
+              notes: formData.notes,
+              status: formData.status
+            });
+          }
+        }
+
         const { error } = await supabase
           .from('rosters')
-          .insert([rosterData]);
+          .insert(rosterEntries);
 
         if (error) throw error;
-        toast({ title: "Success", description: "Roster entry added successfully" });
+        toast({ 
+          title: "Success", 
+          description: `Created ${rosterEntries.length} roster entries successfully` 
+        });
       }
       
       setIsDialogOpen(false);
@@ -249,10 +302,11 @@ export const Roster = () => {
 
   const resetForm = () => {
     setFormData({
-      profile_id: "",
+      selected_profiles: [],
       client_id: "",
       project_id: "",
-      date: selectedDate ? selectedDate.toISOString().split('T')[0] : "",
+      start_date: dateRange?.from ? dateRange.from.toISOString().split('T')[0] : "",
+      end_date: dateRange?.to ? dateRange.to.toISOString().split('T')[0] : "",
       start_time: "",
       end_time: "",
       notes: "",
@@ -272,10 +326,11 @@ export const Roster = () => {
 
     setEditingRoster(roster);
     setFormData({
-      profile_id: roster.profile_id,
+      selected_profiles: [roster.profile_id],
       client_id: roster.client_id,
       project_id: roster.project_id,
-      date: roster.date,
+      start_date: roster.date,
+      end_date: roster.date,
       start_time: roster.start_time,
       end_time: roster.end_time,
       notes: roster.notes || "",
@@ -284,8 +339,22 @@ export const Roster = () => {
     setIsDialogOpen(true);
   };
 
-  const getTotalHoursForDay = () => {
+  const handleEmployeeToggle = (profileId: string, checked: boolean) => {
+    setFormData(prev => ({
+      ...prev,
+      selected_profiles: checked 
+        ? [...prev.selected_profiles, profileId]
+        : prev.selected_profiles.filter(id => id !== profileId)
+    }));
+  };
+
+  const getTotalHoursForDateRange = () => {
     return rosters.reduce((total, roster) => total + roster.total_hours, 0);
+  };
+
+  const getUniqueProfiles = () => {
+    const profileIds = [...new Set(rosters.map(r => r.profile_id))];
+    return profiles.filter(p => profileIds.includes(p.id));
   };
 
   if (loading && rosters.length === 0) {
@@ -306,19 +375,49 @@ export const Roster = () => {
               Add Roster Entry
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingRoster ? "Edit Roster Entry" : "Add New Roster Entry"}</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <ProfileSelector
-                profiles={profiles}
-                selectedProfileId={formData.profile_id}
-                onProfileSelect={(profileId) => setFormData({ ...formData, profile_id: profileId })}
-                label="Select Profile"
-                placeholder="Choose a team member"
-                showRoleFilter={true}
-              />
+              {!editingRoster && (
+                <div>
+                  <Label>Select Employees</Label>
+                  <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto border rounded p-3">
+                    {profiles.map((profile) => (
+                      <div key={profile.id} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={profile.id}
+                          checked={formData.selected_profiles.includes(profile.id)}
+                          onCheckedChange={(checked) => handleEmployeeToggle(profile.id, checked as boolean)}
+                        />
+                        <Label 
+                          htmlFor={profile.id} 
+                          className="text-sm cursor-pointer flex-1"
+                        >
+                          {profile.full_name} - {profile.role}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                  {formData.selected_profiles.length > 0 && (
+                    <div className="text-sm text-gray-600 mt-1">
+                      {formData.selected_profiles.length} employee(s) selected
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {editingRoster && (
+                <div>
+                  <Label>Employee</Label>
+                  <Input
+                    value={editingRoster.profiles?.full_name || ""}
+                    disabled
+                    className="bg-gray-100"
+                  />
+                </div>
+              )}
               
               <div>
                 <Label htmlFor="client_id">Client</Label>
@@ -352,15 +451,27 @@ export const Roster = () => {
                 </Select>
               </div>
 
-              <div>
-                <Label htmlFor="date">Date</Label>
-                <Input
-                  id="date"
-                  type="date"
-                  value={formData.date}
-                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                  required
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="start_date">Start Date</Label>
+                  <Input
+                    id="start_date"
+                    type="date"
+                    value={formData.start_date}
+                    onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="end_date">End Date</Label>
+                  <Input
+                    id="end_date"
+                    type="date"
+                    value={formData.end_date}
+                    onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+                    required
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -397,7 +508,7 @@ export const Roster = () => {
               </div>
 
               <Button type="submit" disabled={loading} className="w-full">
-                {loading ? "Saving..." : editingRoster ? "Update Roster Entry" : "Add Roster Entry"}
+                {loading ? "Saving..." : editingRoster ? "Update Roster Entry" : "Add Roster Entries"}
               </Button>
             </form>
           </DialogContent>
@@ -408,17 +519,24 @@ export const Roster = () => {
         <Card className="lg:col-span-1">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <CalendarIcon className="h-5 w-5" />
-              Select Date
+              <CalendarRange className="h-5 w-5" />
+              Select Date Range
             </CardTitle>
           </CardHeader>
           <CardContent>
             <Calendar
-              mode="single"
-              selected={selectedDate}
-              onSelect={setSelectedDate}
+              mode="range"
+              selected={dateRange}
+              onSelect={setDateRange}
               className="rounded-md border"
+              numberOfMonths={1}
             />
+            {dateRange?.from && dateRange?.to && (
+              <div className="mt-4 text-sm text-gray-600">
+                <p><strong>From:</strong> {format(dateRange.from, 'PPP')}</p>
+                <p><strong>To:</strong> {format(dateRange.to, 'PPP')}</p>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -427,19 +545,32 @@ export const Roster = () => {
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2">
                 <Clock className="h-5 w-5" />
-                Daily Roster - {selectedDate?.toDateString()}
+                Roster Schedule
+                {dateRange?.from && dateRange?.to && (
+                  <span className="text-sm font-normal text-gray-600">
+                    ({format(dateRange.from, 'MMM d')} - {format(dateRange.to, 'MMM d')})
+                  </span>
+                )}
               </CardTitle>
               <Badge variant="outline" className="flex items-center gap-1">
                 <User className="h-3 w-3" />
-                {getTotalHoursForDay().toFixed(1)}h total
+                {getTotalHoursForDateRange().toFixed(1)}h total
               </Badge>
             </div>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {profiles.map((profile) => {
+            <div className="space-y-6">
+              {getUniqueProfiles().map((profile) => {
                 const profileRosters = rosters.filter(r => r.profile_id === profile.id);
                 const totalHours = profileRosters.reduce((sum, r) => sum + r.total_hours, 0);
+                
+                // Group rosters by date
+                const rostersByDate = profileRosters.reduce((acc, roster) => {
+                  const date = roster.date;
+                  if (!acc[date]) acc[date] = [];
+                  acc[date].push(roster);
+                  return acc;
+                }, {} as Record<string, RosterEntry[]>);
                 
                 return (
                   <div key={profile.id} className="border rounded-lg p-4">
@@ -451,56 +582,73 @@ export const Roster = () => {
                       <Badge variant="outline">{totalHours.toFixed(1)}h</Badge>
                     </div>
                     
-                    {profileRosters.length > 0 ? (
-                      <div className="space-y-2">
-                        {profileRosters.map((roster) => {
-                          const approvedHours = getApprovedHoursForRoster(roster.id);
-                          const isEditable = isRosterEditable(roster);
-                          
-                          return (
-                            <div key={roster.id} className="flex items-center justify-between p-3 bg-gray-50 rounded">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <span className="text-sm font-medium">{roster.start_time} - {roster.end_time}</span>
-                                  <span className="text-sm text-gray-600">({roster.total_hours}h)</span>
-                                </div>
-                                <div className="flex items-center gap-2 mb-1">
-                                  <span className="text-sm text-gray-600">{roster.projects?.name}</span>
-                                  <Badge variant={roster.status === "confirmed" ? "default" : roster.status === "pending" ? "secondary" : "outline"} className="text-xs">
-                                    {roster.status}
-                                  </Badge>
-                                </div>
-                                {!isEditable && (
-                                  <div className="flex items-center gap-1 text-xs text-orange-600">
-                                    <AlertCircle className="h-3 w-3" />
-                                    <span>Roster not editable: {approvedHours} hour(s) already approved</span>
+                    {Object.keys(rostersByDate).length > 0 ? (
+                      <div className="space-y-3">
+                        {Object.entries(rostersByDate)
+                          .sort(([a], [b]) => a.localeCompare(b))
+                          .map(([date, dayRosters]) => (
+                          <div key={date} className="border-l-4 border-blue-200 pl-4">
+                            <h5 className="font-medium text-sm mb-2">
+                              {format(parseISO(date), 'EEEE, MMM d, yyyy')}
+                            </h5>
+                            <div className="space-y-2">
+                              {dayRosters.map((roster) => {
+                                const approvedHours = getApprovedHoursForRoster(roster.id);
+                                const isEditable = isRosterEditable(roster);
+                                
+                                return (
+                                  <div key={roster.id} className="flex items-center justify-between p-3 bg-gray-50 rounded">
+                                    <div className="flex-1">
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <span className="text-sm font-medium">{roster.start_time} - {roster.end_time}</span>
+                                        <span className="text-sm text-gray-600">({roster.total_hours}h)</span>
+                                      </div>
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <span className="text-sm text-gray-600">{roster.projects?.name}</span>
+                                        <Badge variant={roster.status === "confirmed" ? "default" : roster.status === "pending" ? "secondary" : "outline"} className="text-xs">
+                                          {roster.status}
+                                        </Badge>
+                                      </div>
+                                      {!isEditable && (
+                                        <div className="flex items-center gap-1 text-xs text-orange-600">
+                                          <AlertCircle className="h-3 w-3" />
+                                          <span>Roster not editable: {approvedHours} hour(s) already approved</span>
+                                        </div>
+                                      )}
+                                      {roster.notes && (
+                                        <p className="text-xs text-gray-500 mt-1">{roster.notes}</p>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <Button 
+                                        variant="ghost" 
+                                        size="sm" 
+                                        onClick={() => handleEdit(roster)}
+                                        disabled={!isEditable}
+                                        className={!isEditable ? "opacity-50 cursor-not-allowed" : ""}
+                                      >
+                                        <Edit className="h-4 w-4" />
+                                      </Button>
+                                    </div>
                                   </div>
-                                )}
-                                {roster.notes && (
-                                  <p className="text-xs text-gray-500 mt-1">{roster.notes}</p>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm" 
-                                  onClick={() => handleEdit(roster)}
-                                  disabled={!isEditable}
-                                  className={!isEditable ? "opacity-50 cursor-not-allowed" : ""}
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                              </div>
+                                );
+                              })}
                             </div>
-                          );
-                        })}
+                          </div>
+                        ))}
                       </div>
                     ) : (
-                      <p className="text-sm text-gray-500 italic">No scheduled hours</p>
+                      <p className="text-sm text-gray-500 italic">No scheduled hours in this period</p>
                     )}
                   </div>
                 );
               })}
+              
+              {getUniqueProfiles().length === 0 && (
+                <div className="text-center py-8">
+                  <p className="text-gray-500">No roster entries found for the selected date range.</p>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
