@@ -11,6 +11,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { BulkPayroll, Profile } from "@/types/database";
 import { useToast } from "@/hooks/use-toast";
 import { EnhancedProfileSelector } from "./EnhancedProfileSelector";
+import type { Database } from "@/integrations/supabase/types";
+
+type BulkPayrollItemStatus = Database["public"]["Enums"]["bulk_payroll_item_status"];
 
 interface BulkSalaryProcessorProps {
   bulkPayrolls: BulkPayroll[];
@@ -66,7 +69,7 @@ export const BulkSalaryProcessor = ({ bulkPayrolls, profiles, onRefresh }: BulkS
       const bulkItems = selectedProfileIds.map(profileId => ({
         bulk_payroll_id: bulkPayrollData.id,
         profile_id: profileId,
-        status: 'pending'
+        status: 'pending' as BulkPayrollItemStatus
       }));
 
       const { error: itemsError } = await supabase
@@ -123,7 +126,7 @@ export const BulkSalaryProcessor = ({ bulkPayrolls, profiles, onRefresh }: BulkS
             .from('bulk_payroll_items')
             .update({ 
               payroll_id: payrollData.id, 
-              status: 'processed' 
+              status: 'processed' as BulkPayrollItemStatus
             })
             .eq('bulk_payroll_id', bulkPayrollData.id)
             .eq('profile_id', profileId);
@@ -141,7 +144,7 @@ export const BulkSalaryProcessor = ({ bulkPayrolls, profiles, onRefresh }: BulkS
           await supabase
             .from('bulk_payroll_items')
             .update({ 
-              status: 'failed',
+              status: 'failed' as BulkPayrollItemStatus,
               error_message: error instanceof Error ? error.message : 'Unknown error'
             })
             .eq('bulk_payroll_id', bulkPayrollData.id)
