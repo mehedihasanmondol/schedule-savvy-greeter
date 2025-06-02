@@ -6,9 +6,14 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calculator, DollarSign, AlertTriangle, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { Profile, WorkingHour, BankAccount, Payroll, WorkingHoursStatus } from "@/types/database";
+import { Profile, WorkingHour, BankAccount, Payroll } from "@/types/database";
 import { useToast } from "@/hooks/use-toast";
 import { EnhancedProfileSelector } from "./EnhancedProfileSelector";
+import type { Database } from "@/integrations/supabase/types";
+
+type WorkingHoursStatus = Database["public"]["Enums"]["working_hours_status"];
+type UserRole = Database["public"]["Enums"]["user_role"];
+type EmploymentType = Database["public"]["Enums"]["employment_type"];
 
 interface PayrollGenerationWizardProps {
   profiles: Profile[];
@@ -23,6 +28,8 @@ export const PayrollGenerationWizard = ({ profiles, workingHours, onRefresh }: P
     end: new Date().toISOString().split('T')[0]
   });
   const [statusFilter, setStatusFilter] = useState<WorkingHoursStatus>('approved');
+  const [roleFilter, setRoleFilter] = useState<UserRole | 'all'>('all');
+  const [employmentTypeFilter, setEmploymentTypeFilter] = useState<EmploymentType | 'all'>('all');
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [selectedBankAccount, setSelectedBankAccount] = useState("");
   const [loading, setLoading] = useState(false);
@@ -42,7 +49,7 @@ export const PayrollGenerationWizard = ({ profiles, workingHours, onRefresh }: P
 
   useEffect(() => {
     reloadFilteredData();
-  }, [dateRange, statusFilter]);
+  }, [dateRange, statusFilter, roleFilter, employmentTypeFilter]);
 
   useEffect(() => {
     if (selectedProfileIds.length > 0 && dateRange.start && dateRange.end) {
@@ -58,14 +65,14 @@ export const PayrollGenerationWizard = ({ profiles, workingHours, onRefresh }: P
     try {
       setFilterLoading(true);
       
-      console.log('Reloading filtered data with:', { dateRange, statusFilter });
+      console.log('Reloading filtered data with:', { dateRange, statusFilter, roleFilter, employmentTypeFilter });
       
       // Fetch working hours based on date range and status
       const { data: workingHoursData, error: whError } = await supabase
         .from('working_hours')
         .select(`
           *,
-          profiles!working_hours_profile_id_fkey (id, full_name, role, hourly_rate),
+          profiles!working_hours_profile_id_fkey (id, full_name, role, hourly_rate, employment_type),
           clients!working_hours_client_id_fkey (id, name, company),
           projects!working_hours_project_id_fkey (id, name)
         `)
@@ -93,9 +100,19 @@ export const PayrollGenerationWizard = ({ profiles, workingHours, onRefresh }: P
       const profileIdsFromWorkingHours = new Set(typedWorkingHours.map(wh => wh.profile_id));
       console.log('Profile IDs from working hours:', profileIdsFromWorkingHours.size);
 
-      // Filter profiles that have unpaid working hours in the selected date range
-      const profilesWithUnpaidHours = profiles.filter(profile => {
+      // Filter profiles based on role and employment type
+      let eligibleProfiles = profiles.filter(profile => {
         if (!profileIdsFromWorkingHours.has(profile.id)) {
+          return false;
+        }
+
+        // Filter by role
+        if (roleFilter !== 'all' && profile.role !== roleFilter) {
+          return false;
+        }
+
+        // Filter by employment type
+        if (employmentTypeFilter !== 'all' && profile.employment_type !== employmentTypeFilter) {
           return false;
         }
 
@@ -121,12 +138,12 @@ export const PayrollGenerationWizard = ({ profiles, workingHours, onRefresh }: P
         return hasUnpaidHours;
       });
 
-      console.log('Profiles with unpaid hours:', profilesWithUnpaidHours.length);
-      setFilteredProfiles(profilesWithUnpaidHours);
+      console.log('Profiles with unpaid hours:', eligibleProfiles.length);
+      setFilteredProfiles(eligibleProfiles);
 
       // Clear selected profiles if they're no longer eligible
       setSelectedProfileIds(prev => 
-        prev.filter(id => profilesWithUnpaidHours.some(p => p.id === id))
+        prev.filter(id => eligibleProfiles.some(p => p.id === id))
       );
 
     } catch (error) {
@@ -398,8 +415,42 @@ export const PayrollGenerationWizard = ({ profiles, workingHours, onRefresh }: P
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="approved">Approved Only</SelectItem>
-                          <SelectItem value="pending">Pending Only</SelectItem>
+                          <SelectItem value="approved">Approved</SelectItem>
+                          <SelectItem value="pending">Pending</SelectItem>
+                          <SelectItem value="rejected">Rejected</SelectItem>
+                          <SelectItem value="paid">Paid</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label>Employee Role</Label>
+                      <Select value={roleFilter} onValueChange={(value: UserRole | 'all') => setRoleFilter(value)}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Roles</SelectItem>
+                          <SelectItem value="admin">Admin</SelectItem>
+                          <SelectItem value="employee">Employee</SelectItem>
+                          <SelectItem value="accountant">Accountant</SelectItem>
+                          <SelectItem value="operation">Operation</SelectItem>
+                          <SelectItem value="sales_manager">Sales Manager</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label>Employment Type</Label>
+                      <Select value={employmentTypeFilter} onValueChange={(value: EmploymentType | 'all') => setEmploymentTypeFilter(value)}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Types</SelectItem>
+                          <SelectItem value="full-time">Full-time</SelectItem>
+                          <SelectItem value="part-time">Part-time</SelectItem>
+                          <SelectItem value="casual">Casual</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
