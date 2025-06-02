@@ -4,9 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calculator, DollarSign, AlertTriangle, RefreshCw } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Calculator, DollarSign, AlertTriangle, RefreshCw, Filter } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { Profile, WorkingHour, BankAccount, Payroll, WorkingHoursStatus } from "@/types/database";
+import { Profile, WorkingHour, BankAccount, Payroll, WorkingHoursStatus, UserRole, EmploymentType } from "@/types/database";
 import { useToast } from "@/hooks/use-toast";
 import { EnhancedProfileSelector } from "./EnhancedProfileSelector";
 
@@ -23,6 +24,8 @@ export const PayrollGenerationWizard = ({ profiles, workingHours, onRefresh }: P
     end: new Date().toISOString().split('T')[0]
   });
   const [statusFilter, setStatusFilter] = useState<WorkingHoursStatus>('approved');
+  const [roleFilter, setRoleFilter] = useState<UserRole | 'all'>('all');
+  const [employmentTypeFilter, setEmploymentTypeFilter] = useState<EmploymentType | 'all'>('all');
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [selectedBankAccount, setSelectedBankAccount] = useState("");
   const [loading, setLoading] = useState(false);
@@ -42,7 +45,7 @@ export const PayrollGenerationWizard = ({ profiles, workingHours, onRefresh }: P
 
   useEffect(() => {
     reloadFilteredData();
-  }, [dateRange, statusFilter]);
+  }, [dateRange, statusFilter, roleFilter, employmentTypeFilter]);
 
   useEffect(() => {
     if (selectedProfileIds.length > 0 && dateRange.start && dateRange.end) {
@@ -58,14 +61,14 @@ export const PayrollGenerationWizard = ({ profiles, workingHours, onRefresh }: P
     try {
       setFilterLoading(true);
       
-      console.log('Reloading filtered data with:', { dateRange, statusFilter });
+      console.log('Reloading filtered data with:', { dateRange, statusFilter, roleFilter, employmentTypeFilter });
       
-      // Fetch working hours based on date range and status
-      const { data: workingHoursData, error: whError } = await supabase
+      // Build query for working hours
+      let workingHoursQuery = supabase
         .from('working_hours')
         .select(`
           *,
-          profiles!working_hours_profile_id_fkey (id, full_name, role, hourly_rate),
+          profiles!working_hours_profile_id_fkey (id, full_name, role, hourly_rate, employment_type),
           clients!working_hours_client_id_fkey (id, name, company),
           projects!working_hours_project_id_fkey (id, name)
         `)
@@ -74,6 +77,8 @@ export const PayrollGenerationWizard = ({ profiles, workingHours, onRefresh }: P
         .eq('status', statusFilter)
         .order('date', { ascending: false });
 
+      const { data: workingHoursData, error: whError } = await workingHoursQuery;
+
       if (whError) {
         console.error('Error fetching working hours:', whError);
         throw whError;
@@ -81,7 +86,6 @@ export const PayrollGenerationWizard = ({ profiles, workingHours, onRefresh }: P
 
       console.log('Fetched working hours:', workingHoursData?.length || 0);
 
-      // Type assertion to handle the nested profile data structure
       const typedWorkingHours = (workingHoursData || []).map(wh => ({
         ...wh,
         status: wh.status as WorkingHoursStatus
@@ -89,12 +93,27 @@ export const PayrollGenerationWizard = ({ profiles, workingHours, onRefresh }: P
 
       setFilteredWorkingHours(typedWorkingHours);
 
+      // Filter profiles based on role and employment type
+      let profilesFilterQuery = profiles.filter(profile => {
+        // Apply role filter
+        if (roleFilter !== 'all' && profile.role !== roleFilter) {
+          return false;
+        }
+
+        // Apply employment type filter
+        if (employmentTypeFilter !== 'all' && profile.employment_type !== employmentTypeFilter) {
+          return false;
+        }
+
+        return true;
+      });
+
       // Get unique profile IDs from working hours
       const profileIdsFromWorkingHours = new Set(typedWorkingHours.map(wh => wh.profile_id));
       console.log('Profile IDs from working hours:', profileIdsFromWorkingHours.size);
 
       // Filter profiles that have unpaid working hours in the selected date range
-      const profilesWithUnpaidHours = profiles.filter(profile => {
+      const profilesWithUnpaidHours = profilesFilterQuery.filter(profile => {
         if (!profileIdsFromWorkingHours.has(profile.id)) {
           return false;
         }
@@ -373,6 +392,61 @@ export const PayrollGenerationWizard = ({ profiles, workingHours, onRefresh }: P
                   </div>
                   
                   <div className="space-y-4">
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Filter className="h-4 w-4" />
+                        <Label className="font-medium">Filter Options</Label>
+                      </div>
+                      
+                      <div className="space-y-3">
+                        <div>
+                          <Label className="text-sm">Role Filter</Label>
+                          <Select value={roleFilter} onValueChange={(value: UserRole | 'all') => setRoleFilter(value)}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">All Roles</SelectItem>
+                              <SelectItem value="admin">Admin</SelectItem>
+                              <SelectItem value="manager">Manager</SelectItem>
+                              <SelectItem value="employee">Employee</SelectItem>
+                              <SelectItem value="contractor">Contractor</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div>
+                          <Label className="text-sm">Employment Type</Label>
+                          <Select value={employmentTypeFilter} onValueChange={(value: EmploymentType | 'all') => setEmploymentTypeFilter(value)}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">All Types</SelectItem>
+                              <SelectItem value="full-time">Full-time</SelectItem>
+                              <SelectItem value="part-time">Part-time</SelectItem>
+                              <SelectItem value="contract">Contract</SelectItem>
+                              <SelectItem value="casual">Casual</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div>
+                          <Label className="text-sm">Working Hours Status</Label>
+                          <Select value={statusFilter} onValueChange={(value: WorkingHoursStatus) => setStatusFilter(value)}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="approved">Approved Only</SelectItem>
+                              <SelectItem value="pending">Pending Only</SelectItem>
+                              <SelectItem value="paid">Paid Only</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </div>
+
                     <div>
                       <Label>Pay Period Start</Label>
                       <Input
@@ -389,19 +463,6 @@ export const PayrollGenerationWizard = ({ profiles, workingHours, onRefresh }: P
                         value={dateRange.end}
                         onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
                       />
-                    </div>
-
-                    <div>
-                      <Label>Working Hours Status</Label>
-                      <Select value={statusFilter} onValueChange={(value: WorkingHoursStatus) => setStatusFilter(value)}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="approved">Approved Only</SelectItem>
-                          <SelectItem value="pending">Pending Only</SelectItem>
-                        </SelectContent>
-                      </Select>
                     </div>
 
                     <div>
@@ -443,24 +504,28 @@ export const PayrollGenerationWizard = ({ profiles, workingHours, onRefresh }: P
                 </div>
 
                 <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
                     <div>
                       <div className="text-gray-600">Eligible Profiles</div>
                       <div className="font-bold text-blue-600">{filteredProfiles.length}</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-600">Role Filter</div>
+                      <div className="font-bold capitalize">{roleFilter}</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-600">Employment Type</div>
+                      <div className="font-bold capitalize">{employmentTypeFilter}</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-600">Hours Status</div>
+                      <div className="font-bold capitalize">{statusFilter}</div>
                     </div>
                     <div>
                       <div className="text-gray-600">Unpaid Hours</div>
                       <div className="font-bold text-green-600">
                         {filteredWorkingHours.reduce((sum, wh) => sum + wh.total_hours, 0).toFixed(1)}
                       </div>
-                    </div>
-                    <div>
-                      <div className="text-gray-600">Date Range</div>
-                      <div className="font-bold">{dateRange.start} to {dateRange.end}</div>
-                    </div>
-                    <div>
-                      <div className="text-gray-600">Status Filter</div>
-                      <div className="font-bold capitalize">{statusFilter}</div>
                     </div>
                   </div>
                 </div>
