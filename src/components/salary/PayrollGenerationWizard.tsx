@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -367,7 +368,7 @@ export const PayrollGenerationWizard = ({ profiles, workingHours, onRefresh }: P
           {step === 1 && (
             <div className="space-y-6">
               <div>
-                <h3 className="text-lg font-semibold mb-4">Step 1: Filter & Select Profiles</h3>
+                <h3 className="text-lg font-semibold mb-4">Step 1: Configure Filters & Select Profiles</h3>
                 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   <div className="lg:col-span-2">
@@ -390,86 +391,94 @@ export const PayrollGenerationWizard = ({ profiles, workingHours, onRefresh }: P
                   </div>
                   
                   <div className="space-y-4">
-                    <div>
-                      <Label>Pay Period Start</Label>
-                      <Input
-                        type="date"
-                        value={dateRange.start}
-                        onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
-                      />
-                    </div>
-                    
-                    <div>
-                      <Label>Pay Period End</Label>
-                      <Input
-                        type="date"
-                        value={dateRange.end}
-                        onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
-                      />
+                    <div className="bg-gray-50 p-4 rounded-lg space-y-4">
+                      <h4 className="font-medium text-gray-700">Pay Period Settings</h4>
+                      
+                      <div>
+                        <Label>Pay Period Start</Label>
+                        <Input
+                          type="date"
+                          value={dateRange.start}
+                          onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                        />
+                      </div>
+                      
+                      <div>
+                        <Label>Pay Period End</Label>
+                        <Input
+                          type="date"
+                          value={dateRange.end}
+                          onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                        />
+                      </div>
+
+                      <div>
+                        <Label>Bank Account</Label>
+                        <Select value={selectedBankAccount} onValueChange={setSelectedBankAccount}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select bank account" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {bankAccounts.map((account) => (
+                              <SelectItem key={account.id} value={account.id}>
+                                {account.bank_name} - {account.account_number}
+                                {account.is_primary && ' (Primary)'}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
 
-                    <div>
-                      <Label>Working Hours Status</Label>
-                      <Select value={statusFilter} onValueChange={(value: WorkingHoursStatus) => setStatusFilter(value)}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="approved">Approved</SelectItem>
-                          <SelectItem value="pending">Pending</SelectItem>
-                          <SelectItem value="rejected">Rejected</SelectItem>
-                          <SelectItem value="paid">Paid</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    <div className="bg-blue-50 p-4 rounded-lg space-y-4">
+                      <h4 className="font-medium text-blue-700">Advanced Filters</h4>
+                      
+                      <div>
+                        <Label>Employee Role</Label>
+                        <Select value={roleFilter} onValueChange={(value: UserRole | 'all') => setRoleFilter(value)}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Roles</SelectItem>
+                            <SelectItem value="admin">Admin</SelectItem>
+                            <SelectItem value="employee">Employee</SelectItem>
+                            <SelectItem value="accountant">Accountant</SelectItem>
+                            <SelectItem value="operation">Operation</SelectItem>
+                            <SelectItem value="sales_manager">Sales Manager</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
 
-                    <div>
-                      <Label>Employee Role</Label>
-                      <Select value={roleFilter} onValueChange={(value: UserRole | 'all') => setRoleFilter(value)}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Roles</SelectItem>
-                          <SelectItem value="admin">Admin</SelectItem>
-                          <SelectItem value="employee">Employee</SelectItem>
-                          <SelectItem value="accountant">Accountant</SelectItem>
-                          <SelectItem value="operation">Operation</SelectItem>
-                          <SelectItem value="sales_manager">Sales Manager</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                      <div>
+                        <Label>Employment Type</Label>
+                        <Select value={employmentTypeFilter} onValueChange={(value: EmploymentType | 'all') => setEmploymentTypeFilter(value)}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Types</SelectItem>
+                            <SelectItem value="full-time">Full-time</SelectItem>
+                            <SelectItem value="part-time">Part-time</SelectItem>
+                            <SelectItem value="casual">Casual</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
 
-                    <div>
-                      <Label>Employment Type</Label>
-                      <Select value={employmentTypeFilter} onValueChange={(value: EmploymentType | 'all') => setEmploymentTypeFilter(value)}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Types</SelectItem>
-                          <SelectItem value="full-time">Full-time</SelectItem>
-                          <SelectItem value="part-time">Part-time</SelectItem>
-                          <SelectItem value="casual">Casual</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div>
-                      <Label>Bank Account</Label>
-                      <Select value={selectedBankAccount} onValueChange={setSelectedBankAccount}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select bank account" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {bankAccounts.map((account) => (
-                            <SelectItem key={account.id} value={account.id}>
-                              {account.bank_name} - {account.account_number}
-                              {account.is_primary && ' (Primary)'}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div>
+                        <Label>Working Hours Status</Label>
+                        <Select value={statusFilter} onValueChange={(value: WorkingHoursStatus) => setStatusFilter(value)}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="approved">Approved</SelectItem>
+                            <SelectItem value="pending">Pending</SelectItem>
+                            <SelectItem value="rejected">Rejected</SelectItem>
+                            <SelectItem value="paid">Paid</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
 
                     <Button 
