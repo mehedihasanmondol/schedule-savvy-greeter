@@ -10,11 +10,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { Profile, WorkingHour, BankAccount, Payroll } from "@/types/database";
 import { useToast } from "@/hooks/use-toast";
 import { EnhancedProfileSelector } from "./EnhancedProfileSelector";
-import type { Database } from "@/integrations/supabase/types";
-
-type WorkingHoursStatus = Database["public"]["Enums"]["working_hours_status"];
-type UserRole = Database["public"]["Enums"]["user_role"];
-type EmploymentType = Database["public"]["Enums"]["employment_type"];
 
 interface PayrollGenerationWizardProps {
   profiles: Profile[];
@@ -28,9 +23,6 @@ export const PayrollGenerationWizard = ({ profiles, workingHours, onRefresh }: P
     start: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     end: new Date().toISOString().split('T')[0]
   });
-  const [statusFilter, setStatusFilter] = useState<WorkingHoursStatus>('approved');
-  const [roleFilter, setRoleFilter] = useState<UserRole | 'all'>('all');
-  const [employmentTypeFilter, setEmploymentTypeFilter] = useState<EmploymentType | 'all'>('all');
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [selectedBankAccount, setSelectedBankAccount] = useState("");
   const [loading, setLoading] = useState(false);
@@ -50,7 +42,7 @@ export const PayrollGenerationWizard = ({ profiles, workingHours, onRefresh }: P
 
   useEffect(() => {
     reloadFilteredData();
-  }, [dateRange, statusFilter, roleFilter, employmentTypeFilter]);
+  }, [dateRange]);
 
   useEffect(() => {
     if (selectedProfileIds.length > 0 && dateRange.start && dateRange.end) {
@@ -66,9 +58,9 @@ export const PayrollGenerationWizard = ({ profiles, workingHours, onRefresh }: P
     try {
       setFilterLoading(true);
       
-      console.log('Reloading filtered data with:', { dateRange, statusFilter, roleFilter, employmentTypeFilter });
+      console.log('Reloading filtered data with:', { dateRange });
       
-      // Fetch working hours based on date range and status
+      // Fetch working hours based on date range and status = 'approved'
       const { data: workingHoursData, error: whError } = await supabase
         .from('working_hours')
         .select(`
@@ -79,7 +71,7 @@ export const PayrollGenerationWizard = ({ profiles, workingHours, onRefresh }: P
         `)
         .gte('date', dateRange.start)
         .lte('date', dateRange.end)
-        .eq('status', statusFilter)
+        .eq('status', 'approved')
         .order('date', { ascending: false });
 
       if (whError) {
@@ -89,31 +81,16 @@ export const PayrollGenerationWizard = ({ profiles, workingHours, onRefresh }: P
 
       console.log('Fetched working hours:', workingHoursData?.length || 0);
 
-      // Type assertion to handle the nested profile data structure
-      const typedWorkingHours = (workingHoursData || []).map(wh => ({
-        ...wh,
-        status: wh.status as WorkingHoursStatus
-      })) as WorkingHour[];
-
+      const typedWorkingHours = (workingHoursData || []) as WorkingHour[];
       setFilteredWorkingHours(typedWorkingHours);
 
       // Get unique profile IDs from working hours
       const profileIdsFromWorkingHours = new Set(typedWorkingHours.map(wh => wh.profile_id));
       console.log('Profile IDs from working hours:', profileIdsFromWorkingHours.size);
 
-      // Filter profiles based on role and employment type
+      // Filter profiles based on those who have working hours in the date range
       let eligibleProfiles = profiles.filter(profile => {
         if (!profileIdsFromWorkingHours.has(profile.id)) {
-          return false;
-        }
-
-        // Filter by role
-        if (roleFilter !== 'all' && profile.role !== roleFilter) {
-          return false;
-        }
-
-        // Filter by employment type
-        if (employmentTypeFilter !== 'all' && profile.employment_type !== employmentTypeFilter) {
           return false;
         }
 
@@ -240,7 +217,8 @@ export const PayrollGenerationWizard = ({ profiles, workingHours, onRefresh }: P
         const overtimeHours = unpaidHours.reduce((sum, wh) => sum + (wh.overtime_hours || 0), 0);
         const regularHours = totalHours - overtimeHours;
         
-        const hourlyRate = profile.hourly_rate || 0;
+        // Use the working hours hourly rate instead of profile rate
+        const hourlyRate = unpaidHours.length > 0 ? unpaidHours[0].hourly_rate || 0 : 0;
         const regularPay = regularHours * hourlyRate;
         const overtimePay = overtimeHours * hourlyRate * 1.5;
         const grossPay = regularPay + overtimePay;
@@ -368,14 +346,14 @@ export const PayrollGenerationWizard = ({ profiles, workingHours, onRefresh }: P
           {step === 1 && (
             <div className="space-y-6">
               <div>
-                <h3 className="text-lg font-semibold mb-4">Step 1: Configure Filters & Select Profiles</h3>
+                <h3 className="text-lg font-semibold mb-4">Step 1: Configure Pay Period & Select Profiles</h3>
                 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   <div className="lg:col-span-2">
                     <div className="mb-4">
                       <div className="flex items-center gap-2 text-sm text-blue-600 mb-2">
                         <Calculator className="h-4 w-4" />
-                        Showing employees with unpaid working hours for selected criteria
+                        Showing employees with approved working hours for selected period
                         {filterLoading && <RefreshCw className="h-4 w-4 animate-spin" />}
                       </div>
                     </div>
@@ -428,88 +406,37 @@ export const PayrollGenerationWizard = ({ profiles, workingHours, onRefresh }: P
                           </SelectContent>
                         </Select>
                       </div>
+
+                      <Button 
+                        onClick={reloadFilteredData} 
+                        variant="outline" 
+                        className="w-full"
+                        disabled={filterLoading}
+                      >
+                        {filterLoading ? (
+                          <>
+                            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                            Refreshing...
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="h-4 w-4 mr-2" />
+                            Refresh Data
+                          </>
+                        )}
+                      </Button>
                     </div>
-
-                    <div className="bg-blue-50 p-4 rounded-lg space-y-4">
-                      <h4 className="font-medium text-blue-700">Advanced Filters</h4>
-                      
-                      <div>
-                        <Label>Employee Role</Label>
-                        <Select value={roleFilter} onValueChange={(value: UserRole | 'all') => setRoleFilter(value)}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All Roles</SelectItem>
-                            <SelectItem value="admin">Admin</SelectItem>
-                            <SelectItem value="employee">Employee</SelectItem>
-                            <SelectItem value="accountant">Accountant</SelectItem>
-                            <SelectItem value="operation">Operation</SelectItem>
-                            <SelectItem value="sales_manager">Sales Manager</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div>
-                        <Label>Employment Type</Label>
-                        <Select value={employmentTypeFilter} onValueChange={(value: EmploymentType | 'all') => setEmploymentTypeFilter(value)}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All Types</SelectItem>
-                            <SelectItem value="full-time">Full-time</SelectItem>
-                            <SelectItem value="part-time">Part-time</SelectItem>
-                            <SelectItem value="casual">Casual</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div>
-                        <Label>Working Hours Status</Label>
-                        <Select value={statusFilter} onValueChange={(value: WorkingHoursStatus) => setStatusFilter(value)}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="approved">Approved</SelectItem>
-                            <SelectItem value="pending">Pending</SelectItem>
-                            <SelectItem value="rejected">Rejected</SelectItem>
-                            <SelectItem value="paid">Paid</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    <Button 
-                      onClick={reloadFilteredData} 
-                      variant="outline" 
-                      className="w-full"
-                      disabled={filterLoading}
-                    >
-                      {filterLoading ? (
-                        <>
-                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                          Refreshing...
-                        </>
-                      ) : (
-                        <>
-                          <RefreshCw className="h-4 w-4 mr-2" />
-                          Refresh Data
-                        </>
-                      )}
-                    </Button>
                   </div>
                 </div>
 
                 <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                     <div>
                       <div className="text-gray-600">Eligible Profiles</div>
                       <div className="font-bold text-blue-600">{filteredProfiles.length}</div>
                     </div>
                     <div>
-                      <div className="text-gray-600">Unpaid Hours</div>
+                      <div className="text-gray-600">Approved Hours</div>
                       <div className="font-bold text-green-600">
                         {filteredWorkingHours.reduce((sum, wh) => sum + wh.total_hours, 0).toFixed(1)}
                       </div>
@@ -517,10 +444,6 @@ export const PayrollGenerationWizard = ({ profiles, workingHours, onRefresh }: P
                     <div>
                       <div className="text-gray-600">Date Range</div>
                       <div className="font-bold">{dateRange.start} to {dateRange.end}</div>
-                    </div>
-                    <div>
-                      <div className="text-gray-600">Status Filter</div>
-                      <div className="font-bold capitalize">{statusFilter}</div>
                     </div>
                   </div>
                 </div>
