@@ -22,7 +22,7 @@ export const SalarySheetManager = ({ onRefresh }: SalarySheetManagerProps) => {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [selectedProfile, setSelectedProfile] = useState<string>('');
-  const [selectedStatus, setSelectedStatus] = useState<string>('');
+  const [selectedStatus, setSelectedStatus] = useState<'pending' | 'approved' | 'paid' | ''>('');
   const [dateRange, setDateRange] = useState<{ from: string; to: string }>({
     from: '',
     to: '',
@@ -125,11 +125,6 @@ export const SalarySheetManager = ({ onRefresh }: SalarySheetManagerProps) => {
     }
   };
 
-  const handleViewDetails = (payroll: Payroll) => {
-    setSelectedPayroll(payroll);
-    setDetailsDialogOpen(true);
-  };
-
   const filteredPayrolls = () => {
     return payrolls.filter(payroll => {
       const profileMatch = !selectedProfile || payroll.profile_id === selectedProfile;
@@ -139,6 +134,11 @@ export const SalarySheetManager = ({ onRefresh }: SalarySheetManagerProps) => {
 
       return profileMatch && statusMatch && dateMatch;
     });
+  };
+
+  const handleViewDetails = (payroll: Payroll) => {
+    setSelectedPayroll(payroll);
+    setDetailsDialogOpen(true);
   };
 
   const handlePrintSalarySheets = () => {
@@ -261,10 +261,10 @@ export const SalarySheetManager = ({ onRefresh }: SalarySheetManagerProps) => {
                       <Badge
                         variant={
                           payroll.status === 'paid'
-                            ? 'success'
+                            ? 'default'
                             : payroll.status === 'approved'
                               ? 'secondary'
-                              : 'destructive'
+                              : 'outline'
                         }
                       >
                         {payroll.status}
@@ -286,7 +286,7 @@ export const SalarySheetManager = ({ onRefresh }: SalarySheetManagerProps) => {
       {selectedPayroll && (
         <PayrollDetailsDialog
           payroll={selectedPayroll}
-          isOpen={detailsDialogOpen}
+          open={detailsDialogOpen}
           onOpenChange={setDetailsDialogOpen}
           onRefresh={() => {
             fetchPayrolls();
@@ -296,8 +296,8 @@ export const SalarySheetManager = ({ onRefresh }: SalarySheetManagerProps) => {
       )}
 
       <SalarySheetPrintView
-        isOpen={isPrintViewOpen}
-        onClose={handleClosePrintView}
+        open={isPrintViewOpen}
+        onOpenChange={setIsPrintViewOpen}
         payrolls={filteredPayrolls()}
         profiles={profiles}
         bankAccounts={bankAccounts}

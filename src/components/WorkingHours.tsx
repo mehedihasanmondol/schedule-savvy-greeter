@@ -11,8 +11,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { Profile, Client, Project, WorkingHour } from "@/types/database";
 import { useToast } from "@/hooks/use-toast";
 import { Clock, Calendar, DollarSign } from "lucide-react";
+import { EditWorkingHoursDialog } from "./EditWorkingHoursDialog";
 
-export const WorkingHours = () => {
+export const WorkingHoursComponent = () => {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -212,14 +213,14 @@ export const WorkingHours = () => {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
+      case 'pending':
+        return <Badge variant="outline">Pending</Badge>;
       case 'approved':
-        return <Badge className="bg-green-500">Approved</Badge>;
+        return <Badge variant="secondary">Approved</Badge>;
       case 'rejected':
         return <Badge variant="destructive">Rejected</Badge>;
-      case 'paid':
-        return <Badge className="bg-blue-500">Paid</Badge>;
       default:
-        return <Badge variant="outline">Pending</Badge>;
+        return <Badge>{status}</Badge>;
     }
   };
 

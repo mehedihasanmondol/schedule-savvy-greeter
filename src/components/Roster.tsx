@@ -8,12 +8,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
-import { Profile, Client, Project, Roster as RosterType } from "@/types/database";
+import { Profile, Client, Project, Roster } from "@/types/database";
 import { useToast } from "@/hooks/use-toast";
-import { Calendar, Clock, Users } from "lucide-react";
+import { Users, Calendar, Clock } from "lucide-react";
 
-export const Roster = () => {
-  const [rosters, setRosters] = useState<RosterType[]>([]);
+export const RosterComponent = () => {
+  const [rosters, setRosters] = useState<Roster[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -46,7 +46,7 @@ export const Roster = () => {
         .order('date', { ascending: false });
 
       if (error) throw error;
-      setRosters(data as RosterType[]);
+      setRosters(data as Roster[]);
     } catch (error) {
       console.error('Error fetching rosters:', error);
     }
@@ -178,6 +178,19 @@ export const Roster = () => {
       });
     } finally {
       setIsCreating(false);
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return <Badge variant="outline">Pending</Badge>;
+      case 'approved':
+        return <Badge variant="secondary">Approved</Badge>;
+      case 'rejected':
+        return <Badge variant="destructive">Rejected</Badge>;
+      default:
+        return <Badge>{status}</Badge>;
     }
   };
 
@@ -354,7 +367,7 @@ export const Roster = () => {
                   <TableCell>{roster.end_time}</TableCell>
                   <TableCell>{roster.total_hours}</TableCell>
                   <TableCell>
-                    <Badge>{roster.status}</Badge>
+                    {getStatusBadge(roster.status)}
                   </TableCell>
                 </TableRow>
               ))}

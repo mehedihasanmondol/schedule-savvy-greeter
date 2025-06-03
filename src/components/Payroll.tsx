@@ -11,7 +11,7 @@ import { Profile, Payroll as PayrollType, BankAccount } from "@/types/database";
 import { useToast } from "@/hooks/use-toast";
 import { Calculator, DollarSign } from "lucide-react";
 
-export const Payroll = () => {
+export const PayrollComponent = () => {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [payrolls, setPayrolls] = useState<PayrollType[]>([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
@@ -189,7 +189,7 @@ export const Payroll = () => {
       case 'approved':
         return <Badge variant="secondary">Approved</Badge>;
       case 'paid':
-        return <Badge variant="success">Paid</Badge>;
+        return <Badge variant="default">Paid</Badge>;
       default:
         return <Badge>{status}</Badge>;
     }

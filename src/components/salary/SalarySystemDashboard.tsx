@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -158,8 +157,6 @@ export const SalarySystemDashboard = () => {
 
         <TabsContent value="salary-sheets">
           <SalarySheetManager 
-            payrolls={payrolls}
-            profiles={profiles}
             onRefresh={fetchAllData}
           />
         </TabsContent>
