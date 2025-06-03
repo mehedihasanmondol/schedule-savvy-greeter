@@ -6,15 +6,17 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Plus, DollarSign, Calendar, FileText } from "lucide-react";
+import { Plus, DollarSign, Calendar, FileText, Clock, User } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import type { Payroll as PayrollType, Profile } from "@/types/database";
+import type { Payroll as PayrollType, Profile, WorkingHour } from "@/types/database";
 import { useToast } from "@/hooks/use-toast";
 import { ProfileSelector } from "@/components/common/ProfileSelector";
 
 export const PayrollComponent = () => {
   const [payrolls, setPayrolls] = useState<PayrollType[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [workingHours, setWorkingHours] = useState<WorkingHour[]>([]);
+  const [profilesWithHours, setProfilesWithHours] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
@@ -28,12 +30,15 @@ export const PayrollComponent = () => {
     gross_pay: 0,
     deductions: 0,
     net_pay: 0,
-    status: "pending"
+    status: "pending" as const
   });
+
+  const [previewWorkingHours, setPreviewWorkingHours] = useState<WorkingHour[]>([]);
 
   useEffect(() => {
     fetchPayrolls();
     fetchProfiles();
+    fetchWorkingHours();
   }, []);
 
   const fetchPayrolls = async () => {
@@ -48,7 +53,6 @@ export const PayrollComponent = () => {
 
       if (error) throw error;
       
-      // Handle the data safely with proper type checking
       const payrollData = (data || []).map(payroll => ({
         ...payroll,
         profiles: Array.isArray(payroll.profiles) ? payroll.profiles[0] : payroll.profiles
@@ -81,6 +85,40 @@ export const PayrollComponent = () => {
       console.error('Error fetching profiles:', error);
     }
   };
+
+  const fetchWorkingHours = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('working_hours')
+        .select(`
+          *,
+          profiles!working_hours_profile_id_fkey (id, full_name, role),
+          clients!working_hours_client_id_fkey (id, name, company),
+          projects!working_hours_project_id_fkey (id, name)
+        `)
+        .eq('status', 'approved')
+        .order('date', { ascending: false });
+
+      if (error) throw error;
+      setWorkingHours(data as WorkingHour[]);
+      
+      // Get profiles that have approved working hours
+      const profileIds = [...new Set(data.map(wh => wh.profile_id))];
+      const profilesWithApprovedHours = profiles.filter(p => profileIds.includes(p.id));
+      setProfilesWithHours(profilesWithApprovedHours);
+    } catch (error) {
+      console.error('Error fetching working hours:', error);
+    }
+  };
+
+  // Update profiles with hours when profiles change
+  useEffect(() => {
+    if (profiles.length > 0 && workingHours.length > 0) {
+      const profileIds = [...new Set(workingHours.map(wh => wh.profile_id))];
+      const profilesWithApprovedHours = profiles.filter(p => profileIds.includes(p.id));
+      setProfilesWithHours(profilesWithApprovedHours);
+    }
+  }, [profiles, workingHours]);
 
   const calculatePayroll = (hours: number, rate: number, deductions: number) => {
     const gross = hours * rate;
@@ -118,6 +156,7 @@ export const PayrollComponent = () => {
         net_pay: 0,
         status: "pending"
       });
+      setPreviewWorkingHours([]);
       fetchPayrolls();
     } catch (error) {
       console.error('Error creating payroll:', error);
@@ -156,40 +195,34 @@ export const PayrollComponent = () => {
 
   const generatePayrollForProfile = async (profileId: string) => {
     try {
-      // Get current month start and end
       const now = new Date();
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
       const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
 
-      // Get approved working hours for this profile
-      const { data: workingHours, error: whError } = await supabase
-        .from('working_hours')
-        .select('total_hours')
-        .eq('profile_id', profileId)
-        .eq('status', 'approved')
-        .gte('date', monthStart)
-        .lte('date', monthEnd);
+      const profileWorkingHours = workingHours.filter(wh => 
+        wh.profile_id === profileId &&
+        wh.date >= monthStart &&
+        wh.date <= monthEnd
+      );
 
-      if (whError) throw whError;
-
-      const totalHours = workingHours?.reduce((sum, wh) => sum + wh.total_hours, 0) || 0;
-      
-      // Get profile hourly rate
-      const profile = profiles.find(p => p.id === profileId);
-      const hourlyRate = profile?.hourly_rate || 25;
+      const totalHours = profileWorkingHours.reduce((sum, wh) => sum + wh.total_hours, 0);
+      const avgHourlyRate = profileWorkingHours.length > 0 
+        ? profileWorkingHours.reduce((sum, wh) => sum + (wh.hourly_rate || 0), 0) / profileWorkingHours.length
+        : 0;
 
       setFormData({
         profile_id: profileId,
         pay_period_start: monthStart,
         pay_period_end: monthEnd,
         total_hours: totalHours,
-        hourly_rate: hourlyRate,
+        hourly_rate: avgHourlyRate,
         gross_pay: 0,
         deductions: 0,
         net_pay: 0,
         status: "pending"
       });
       
+      setPreviewWorkingHours(profileWorkingHours);
       setIsDialogOpen(true);
     } catch (error) {
       console.error('Error generating payroll:', error);
@@ -200,6 +233,30 @@ export const PayrollComponent = () => {
       });
     }
   };
+
+  // Update preview when form data changes
+  useEffect(() => {
+    if (formData.profile_id && formData.pay_period_start && formData.pay_period_end) {
+      const profileWorkingHours = workingHours.filter(wh => 
+        wh.profile_id === formData.profile_id &&
+        wh.date >= formData.pay_period_start &&
+        wh.date <= formData.pay_period_end
+      );
+
+      const totalHours = profileWorkingHours.reduce((sum, wh) => sum + wh.total_hours, 0);
+      const avgHourlyRate = profileWorkingHours.length > 0 
+        ? profileWorkingHours.reduce((sum, wh) => sum + (wh.hourly_rate || 0), 0) / profileWorkingHours.length
+        : 0;
+
+      setFormData(prev => ({
+        ...prev,
+        total_hours: totalHours,
+        hourly_rate: avgHourlyRate
+      }));
+      
+      setPreviewWorkingHours(profileWorkingHours);
+    }
+  }, [formData.profile_id, formData.pay_period_start, formData.pay_period_end, workingHours]);
 
   if (loading && payrolls.length === 0) {
     return <div className="flex justify-center items-center h-64">Loading...</div>;
@@ -223,7 +280,7 @@ export const PayrollComponent = () => {
                 Create Payroll
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-md">
+            <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Create Payroll Record</DialogTitle>
               </DialogHeader>
@@ -262,25 +319,25 @@ export const PayrollComponent = () => {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="total_hours">Total Hours</Label>
+                    <Label htmlFor="total_hours">Total Hours (Auto-calculated)</Label>
                     <Input
                       id="total_hours"
                       type="number"
                       step="0.5"
                       value={formData.total_hours}
-                      onChange={(e) => setFormData({ ...formData, total_hours: parseFloat(e.target.value) || 0 })}
-                      required
+                      readOnly
+                      className="bg-gray-50"
                     />
                   </div>
                   <div>
-                    <Label htmlFor="hourly_rate">Hourly Rate</Label>
+                    <Label htmlFor="hourly_rate">Average Hourly Rate (Auto-calculated)</Label>
                     <Input
                       id="hourly_rate"
                       type="number"
                       step="0.01"
                       value={formData.hourly_rate}
-                      onChange={(e) => setFormData({ ...formData, hourly_rate: parseFloat(e.target.value) || 0 })}
-                      required
+                      readOnly
+                      className="bg-gray-50"
                     />
                   </div>
                 </div>
@@ -309,6 +366,31 @@ export const PayrollComponent = () => {
                     <div className="flex justify-between font-medium">
                       <span>Net Pay:</span>
                       <span>${(formData.total_hours * formData.hourly_rate - formData.deductions).toFixed(2)}</span>
+                    </div>
+                  </div>
+                )}
+
+                {previewWorkingHours.length > 0 && (
+                  <div className="border rounded-lg p-4">
+                    <h4 className="font-medium mb-3 flex items-center gap-2">
+                      <Clock className="h-4 w-4" />
+                      Working Hours Preview ({previewWorkingHours.length} entries)
+                    </h4>
+                    <div className="max-h-40 overflow-y-auto space-y-2">
+                      {previewWorkingHours.map((wh) => (
+                        <div key={wh.id} className="flex justify-between items-center text-sm bg-gray-50 p-2 rounded">
+                          <div>
+                            <span className="font-medium">{new Date(wh.date).toLocaleDateString()}</span>
+                            <span className="text-gray-600 ml-2">
+                              {wh.clients?.company || 'N/A'} - {wh.projects?.name || 'N/A'}
+                            </span>
+                          </div>
+                          <div className="text-right">
+                            <div>{wh.total_hours}h × ${wh.hourly_rate}/hr</div>
+                            <div className="font-medium">${(wh.total_hours * (wh.hourly_rate || 0)).toFixed(2)}</div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -375,25 +457,44 @@ export const PayrollComponent = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>Quick Generate Payroll</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <User className="h-5 w-5" />
+              Quick Generate Payroll - Employees with Approved Hours
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {profiles.map((profile) => (
-                <div key={profile.id} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <div className="font-medium">{profile.full_name}</div>
-                    <div className="text-sm text-gray-600">{profile.role} - ${profile.hourly_rate || 25}/hr</div>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => generatePayrollForProfile(profile.id)}
-                  >
-                    Generate
-                  </Button>
-                </div>
-              ))}
+              {profilesWithHours.length === 0 ? (
+                <p className="text-gray-500 text-center py-4">
+                  No employees have approved working hours available
+                </p>
+              ) : (
+                profilesWithHours.map((profile) => {
+                  const profileHours = workingHours.filter(wh => wh.profile_id === profile.id);
+                  const totalHours = profileHours.reduce((sum, wh) => sum + wh.total_hours, 0);
+                  const avgRate = profileHours.length > 0 
+                    ? profileHours.reduce((sum, wh) => sum + (wh.hourly_rate || 0), 0) / profileHours.length
+                    : 0;
+                  
+                  return (
+                    <div key={profile.id} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div>
+                        <div className="font-medium">{profile.full_name}</div>
+                        <div className="text-sm text-gray-600">
+                          {profile.role} - {totalHours.toFixed(1)}h available at avg ${avgRate.toFixed(2)}/hr
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => generatePayrollForProfile(profile.id)}
+                      >
+                        Generate
+                      </Button>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </CardContent>
         </Card>
