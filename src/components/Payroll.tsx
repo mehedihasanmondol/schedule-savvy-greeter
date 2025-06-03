@@ -1,78 +1,41 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Plus, DollarSign, Calendar, FileText } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
-import type { Payroll as PayrollType, Profile } from "@/types/database";
+import { Profile, Payroll as PayrollType, BankAccount } from "@/types/database";
 import { useToast } from "@/hooks/use-toast";
-import { ProfileSelector } from "@/components/common/ProfileSelector";
+import { Calculator, DollarSign } from "lucide-react";
 
-export const PayrollComponent = () => {
-  const [payrolls, setPayrolls] = useState<PayrollType[]>([]);
+export const Payroll = () => {
   const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [payrolls, setPayrolls] = useState<PayrollType[]>([]);
+  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
+  const [selectedProfile, setSelectedProfile] = useState('');
+  const [selectedBankAccount, setSelectedBankAccount] = useState('');
+  const [payPeriodStart, setPayPeriodStart] = useState('');
+  const [payPeriodEnd, setPayPeriodEnd] = useState('');
+  const [totalHours, setTotalHours] = useState(0);
+  const [hourlyRate, setHourlyRate] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isGenerating, setIsGenerating] = useState(false);
   const { toast } = useToast();
 
-  const [formData, setFormData] = useState({
-    profile_id: "",
-    pay_period_start: "",
-    pay_period_end: "",
-    total_hours: 0,
-    hourly_rate: 0,
-    gross_pay: 0,
-    deductions: 0,
-    net_pay: 0,
-    status: "pending"
-  });
-
   useEffect(() => {
-    fetchPayrolls();
     fetchProfiles();
+    fetchPayrolls();
+    fetchBankAccounts();
   }, []);
-
-  const fetchPayrolls = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('payroll')
-        .select(`
-          *,
-          profiles!payroll_profile_id_fkey (id, full_name, role, hourly_rate)
-        `)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      
-      // Handle the data safely with proper type checking
-      const payrollData = (data || []).map(payroll => ({
-        ...payroll,
-        profiles: Array.isArray(payroll.profiles) ? payroll.profiles[0] : payroll.profiles
-      }));
-      
-      setPayrolls(payrollData as PayrollType[]);
-    } catch (error) {
-      console.error('Error fetching payrolls:', error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch payroll records",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const fetchProfiles = async () => {
     try {
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('is_active', true)
         .order('full_name');
 
       if (error) throw error;
@@ -82,56 +45,109 @@ export const PayrollComponent = () => {
     }
   };
 
-  const calculatePayroll = (hours: number, rate: number, deductions: number) => {
-    const gross = hours * rate;
-    const net = gross - deductions;
-    return { gross, net };
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-
+  const fetchPayrolls = async () => {
     try {
-      const { gross, net } = calculatePayroll(formData.total_hours, formData.hourly_rate, formData.deductions);
-      
-      const { error } = await supabase
+      setIsLoading(true);
+      const { data, error } = await supabase
         .from('payroll')
-        .insert([{
-          ...formData,
-          gross_pay: gross,
-          net_pay: net
-        }]);
+        .select(`
+          *,
+          profiles (id, full_name, email, role),
+          bank_accounts (id, bank_name, account_number)
+        `)
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
-      toast({ title: "Success", description: "Payroll record created successfully" });
-      
-      setIsDialogOpen(false);
-      setFormData({
-        profile_id: "",
-        pay_period_start: "",
-        pay_period_end: "",
-        total_hours: 0,
-        hourly_rate: 0,
-        gross_pay: 0,
-        deductions: 0,
-        net_pay: 0,
-        status: "pending"
-      });
-      fetchPayrolls();
+      setPayrolls(data as PayrollType[]);
     } catch (error) {
-      console.error('Error creating payroll:', error);
-      toast({
-        title: "Error",
-        description: "Failed to create payroll record",
-        variant: "destructive"
-      });
+      console.error('Error fetching payrolls:', error);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
-  const updatePayrollStatus = async (id: string, status: 'approved' | 'paid') => {
+  const fetchBankAccounts = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('bank_accounts')
+        .select('*')
+        .is('profile_id', null)
+        .order('is_primary', { ascending: false });
+
+      if (error) throw error;
+      setBankAccounts(data as BankAccount[]);
+      
+      const primary = data.find(acc => acc.is_primary);
+      if (primary) setSelectedBankAccount(primary.id);
+    } catch (error) {
+      console.error('Error fetching bank accounts:', error);
+    }
+  };
+
+  const generatePayroll = async () => {
+    if (!selectedProfile || !payPeriodStart || !payPeriodEnd || !totalHours || !hourlyRate) {
+      toast({
+        title: "Error",
+        description: "Please fill in all required fields",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      setIsGenerating(true);
+      
+      const grossPay = totalHours * hourlyRate;
+      const deductions = grossPay * 0.1; // 10% deductions
+      const netPay = grossPay - deductions;
+
+      const payrollData = {
+        profile_id: selectedProfile,
+        pay_period_start: payPeriodStart,
+        pay_period_end: payPeriodEnd,
+        total_hours: totalHours,
+        hourly_rate: hourlyRate,
+        gross_pay: grossPay,
+        deductions: deductions,
+        net_pay: netPay,
+        status: 'pending' as const,
+        bank_account_id: selectedBankAccount || null
+      };
+
+      const { data, error } = await supabase
+        .from('payroll')
+        .insert([payrollData])
+        .select('*');
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Payroll generated successfully"
+      });
+
+      // Reset form
+      setSelectedProfile('');
+      setTotalHours(0);
+      setHourlyRate(0);
+      setPayPeriodStart('');
+      setPayPeriodEnd('');
+      
+      // Refresh payroll list
+      fetchPayrolls();
+    } catch (error: any) {
+      console.error('Error generating payroll:', error);
+      toast({
+        title: "Error",
+        description: "Failed to generate payroll",
+        variant: "destructive"
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const updatePayrollStatus = async (id: string, status: 'pending' | 'approved' | 'paid') => {
     try {
       const { error } = await supabase
         .from('payroll')
@@ -139,10 +155,12 @@ export const PayrollComponent = () => {
         .eq('id', id);
 
       if (error) throw error;
-      toast({ 
-        title: "Success", 
-        description: `Payroll ${status} successfully` 
+
+      toast({
+        title: "Success",
+        description: `Payroll status updated to ${status}`
       });
+
       fetchPayrolls();
     } catch (error) {
       console.error('Error updating payroll status:', error);
@@ -154,342 +172,194 @@ export const PayrollComponent = () => {
     }
   };
 
-  const generatePayrollForProfile = async (profileId: string) => {
-    try {
-      // Get current month start and end
-      const now = new Date();
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-      const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
-
-      // Get approved working hours for this profile
-      const { data: workingHours, error: whError } = await supabase
-        .from('working_hours')
-        .select('total_hours')
-        .eq('profile_id', profileId)
-        .eq('status', 'approved')
-        .gte('date', monthStart)
-        .lte('date', monthEnd);
-
-      if (whError) throw whError;
-
-      const totalHours = workingHours?.reduce((sum, wh) => sum + wh.total_hours, 0) || 0;
-      
-      // Get profile hourly rate
-      const profile = profiles.find(p => p.id === profileId);
-      const hourlyRate = profile?.hourly_rate || 25;
-
-      setFormData({
-        profile_id: profileId,
-        pay_period_start: monthStart,
-        pay_period_end: monthEnd,
-        total_hours: totalHours,
-        hourly_rate: hourlyRate,
-        gross_pay: 0,
-        deductions: 0,
-        net_pay: 0,
-        status: "pending"
-      });
-      
-      setIsDialogOpen(true);
-    } catch (error) {
-      console.error('Error generating payroll:', error);
-      toast({
-        title: "Error",
-        description: "Failed to generate payroll",
-        variant: "destructive"
-      });
+  const handleProfileChange = (profileId: string) => {
+    setSelectedProfile(profileId);
+    const profile = profiles.find(p => p.id === profileId);
+    if (profile && profile.hourly_rate) {
+      setHourlyRate(profile.hourly_rate);
+    } else {
+      setHourlyRate(0);
     }
   };
 
-  if (loading && payrolls.length === 0) {
-    return <div className="flex justify-center items-center h-64">Loading...</div>;
-  }
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return <Badge variant="outline">Pending</Badge>;
+      case 'approved':
+        return <Badge variant="secondary">Approved</Badge>;
+      case 'paid':
+        return <Badge variant="success">Paid</Badge>;
+      default:
+        return <Badge>{status}</Badge>;
+    }
+  };
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <DollarSign className="h-8 w-8 text-green-600" />
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Payroll</h1>
-            <p className="text-gray-600">Manage employee payroll and payments</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="flex items-center gap-2">
-                <Plus className="h-4 w-4" />
-                Create Payroll
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Calculator className="h-5 w-5" />
+            Generate Payroll
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="profile">Employee</Label>
+              <Select value={selectedProfile} onValueChange={handleProfileChange}>
+                <SelectTrigger id="profile">
+                  <SelectValue placeholder="Select employee" />
+                </SelectTrigger>
+                <SelectContent>
+                  {profiles.map((profile) => (
+                    <SelectItem key={profile.id} value={profile.id}>
+                      {profile.full_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="bank-account">Bank Account</Label>
+              <Select value={selectedBankAccount} onValueChange={setSelectedBankAccount}>
+                <SelectTrigger id="bank-account">
+                  <SelectValue placeholder="Select bank account" />
+                </SelectTrigger>
+                <SelectContent>
+                  {bankAccounts.map((account) => (
+                    <SelectItem key={account.id} value={account.id}>
+                      {account.bank_name} - {account.account_number}
+                      {account.is_primary && ' (Primary)'}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="pay-period-start">Pay Period Start</Label>
+              <Input
+                id="pay-period-start"
+                type="date"
+                value={payPeriodStart}
+                onChange={(e) => setPayPeriodStart(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="pay-period-end">Pay Period End</Label>
+              <Input
+                id="pay-period-end"
+                type="date"
+                value={payPeriodEnd}
+                onChange={(e) => setPayPeriodEnd(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="total-hours">Total Hours</Label>
+              <Input
+                id="total-hours"
+                type="number"
+                value={totalHours}
+                onChange={(e) => setTotalHours(parseFloat(e.target.value))}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="hourly-rate">Hourly Rate ($)</Label>
+              <Input
+                id="hourly-rate"
+                type="number"
+                value={hourlyRate}
+                onChange={(e) => setHourlyRate(parseFloat(e.target.value))}
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <Button 
+                onClick={generatePayroll} 
+                disabled={isGenerating}
+                className="w-full"
+              >
+                {isGenerating ? 'Generating...' : 'Generate Payroll'}
               </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>Create Payroll Record</DialogTitle>
-              </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <ProfileSelector
-                  profiles={profiles}
-                  selectedProfileId={formData.profile_id}
-                  onProfileSelect={(profileId) => setFormData({ ...formData, profile_id: profileId })}
-                  label="Select Profile"
-                  placeholder="Choose an employee"
-                  showRoleFilter={true}
-                />
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="pay_period_start">Period Start</Label>
-                    <Input
-                      id="pay_period_start"
-                      type="date"
-                      value={formData.pay_period_start}
-                      onChange={(e) => setFormData({ ...formData, pay_period_start: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="pay_period_end">Period End</Label>
-                    <Input
-                      id="pay_period_end"
-                      type="date"
-                      value={formData.pay_period_end}
-                      onChange={(e) => setFormData({ ...formData, pay_period_end: e.target.value })}
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="total_hours">Total Hours</Label>
-                    <Input
-                      id="total_hours"
-                      type="number"
-                      step="0.5"
-                      value={formData.total_hours}
-                      onChange={(e) => setFormData({ ...formData, total_hours: parseFloat(e.target.value) || 0 })}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="hourly_rate">Hourly Rate</Label>
-                    <Input
-                      id="hourly_rate"
-                      type="number"
-                      step="0.01"
-                      value={formData.hourly_rate}
-                      onChange={(e) => setFormData({ ...formData, hourly_rate: parseFloat(e.target.value) || 0 })}
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <Label htmlFor="deductions">Deductions</Label>
-                  <Input
-                    id="deductions"
-                    type="number"
-                    step="0.01"
-                    value={formData.deductions}
-                    onChange={(e) => setFormData({ ...formData, deductions: parseFloat(e.target.value) || 0 })}
-                  />
-                </div>
-
-                {formData.total_hours > 0 && formData.hourly_rate > 0 && (
-                  <div className="bg-gray-50 p-3 rounded">
-                    <div className="flex justify-between text-sm">
-                      <span>Gross Pay:</span>
-                      <span>${(formData.total_hours * formData.hourly_rate).toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span>Deductions:</span>
-                      <span>-${formData.deductions.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between font-medium">
-                      <span>Net Pay:</span>
-                      <span>${(formData.total_hours * formData.hourly_rate - formData.deductions).toFixed(2)}</span>
-                    </div>
-                  </div>
-                )}
-
-                <Button type="submit" disabled={loading} className="w-full">
-                  {loading ? "Creating..." : "Create Payroll"}
-                </Button>
-              </form>
-            </DialogContent>
-          </Dialog>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Total Payroll</CardTitle>
-            <DollarSign className="h-5 w-5 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-gray-900">
-              ${payrolls.reduce((sum, p) => sum + p.gross_pay, 0).toLocaleString()}
             </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Pending</CardTitle>
-            <Calendar className="h-5 w-5 text-orange-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-gray-900">
-              {payrolls.filter(p => p.status === 'pending').length}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Approved</CardTitle>
-            <FileText className="h-5 w-5 text-blue-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-gray-900">
-              {payrolls.filter(p => p.status === 'approved').length}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Paid</CardTitle>
-            <DollarSign className="h-5 w-5 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-gray-900">
-              {payrolls.filter(p => p.status === 'paid').length}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Quick Generate Payroll</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {profiles.map((profile) => (
-                <div key={profile.id} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <div className="font-medium">{profile.full_name}</div>
-                    <div className="text-sm text-gray-600">{profile.role} - ${profile.hourly_rate || 25}/hr</div>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => generatePayrollForProfile(profile.id)}
-                  >
-                    Generate
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Payroll Records</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {payrolls.slice(0, 5).map((payroll) => (
-                <div key={payroll.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div>
-                    <div className="font-medium">{payroll.profiles?.full_name || 'Unknown'}</div>
-                    <div className="text-sm text-gray-600">
-                      {new Date(payroll.pay_period_start).toLocaleDateString()} - {new Date(payroll.pay_period_end).toLocaleDateString()}
-                    </div>
-                    <div className="text-sm font-medium">${payroll.net_pay.toLocaleString()}</div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant={
-                      payroll.status === "paid" ? "default" : 
-                      payroll.status === "approved" ? "secondary" : "outline"
-                    }>
-                      {payroll.status}
-                    </Badge>
-                    {payroll.status === "pending" && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => updatePayrollStatus(payroll.id, "approved")}
-                      >
-                        Approve
-                      </Button>
-                    )}
-                    {payroll.status === "approved" && (
-                      <Button
-                        size="sm"
-                        onClick={() => updatePayrollStatus(payroll.id, "paid")}
-                      >
-                        Mark Paid
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>All Payroll Records</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <DollarSign className="h-5 w-5" />
+            Payroll Records
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="text-left py-3 px-4 font-medium text-gray-600">Employee</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-600">Period</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-600">Hours</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-600">Rate</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-600">Gross</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-600">Net</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-600">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {payrolls.map((payroll) => (
-                  <tr key={payroll.id} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="py-3 px-4">
-                      <div className="font-medium text-gray-900">{payroll.profiles?.full_name || 'Unknown'}</div>
-                      <div className="text-sm text-gray-600">{payroll.profiles?.role || 'N/A'}</div>
-                    </td>
-                    <td className="py-3 px-4 text-gray-600">
-                      {new Date(payroll.pay_period_start).toLocaleDateString()} - {new Date(payroll.pay_period_end).toLocaleDateString()}
-                    </td>
-                    <td className="py-3 px-4 text-gray-600">{payroll.total_hours}h</td>
-                    <td className="py-3 px-4 text-gray-600">${payroll.hourly_rate}/hr</td>
-                    <td className="py-3 px-4 text-gray-600">${payroll.gross_pay.toLocaleString()}</td>
-                    <td className="py-3 px-4 text-gray-600">${payroll.net_pay.toLocaleString()}</td>
-                    <td className="py-3 px-4">
-                      <Badge variant={
-                        payroll.status === "paid" ? "default" : 
-                        payroll.status === "approved" ? "secondary" : "outline"
-                      }>
-                        {payroll.status}
-                      </Badge>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          {isLoading ? (
+            <div className="text-center py-4">Loading payroll records...</div>
+          ) : payrolls.length === 0 ? (
+            <div className="text-center py-4">No payroll records found.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Employee</TableHead>
+                    <TableHead>Pay Period</TableHead>
+                    <TableHead>Hours</TableHead>
+                    <TableHead>Rate</TableHead>
+                    <TableHead>Gross Pay</TableHead>
+                    <TableHead>Net Pay</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {payrolls.map((payroll) => (
+                    <TableRow key={payroll.id}>
+                      <TableCell>{payroll.profiles?.full_name}</TableCell>
+                      <TableCell>
+                        {new Date(payroll.pay_period_start).toLocaleDateString()} - 
+                        {new Date(payroll.pay_period_end).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell>{payroll.total_hours}</TableCell>
+                      <TableCell>${payroll.hourly_rate}</TableCell>
+                      <TableCell>${payroll.gross_pay.toFixed(2)}</TableCell>
+                      <TableCell>${payroll.net_pay.toFixed(2)}</TableCell>
+                      <TableCell>{getStatusBadge(payroll.status)}</TableCell>
+                      <TableCell>
+                        <div className="flex gap-2">
+                          {payroll.status === 'pending' && (
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => updatePayrollStatus(payroll.id, 'approved')}
+                            >
+                              Approve
+                            </Button>
+                          )}
+                          {payroll.status === 'approved' && (
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => updatePayrollStatus(payroll.id, 'paid')}
+                            >
+                              Mark Paid
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
