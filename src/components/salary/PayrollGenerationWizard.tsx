@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calculator, DollarSign, AlertTriangle, RefreshCw, ChevronDown, ChevronUp } from "lucide-react";
+import { Calculator, DollarSign, AlertTriangle, RefreshCw, ChevronDown, ChevronUp, Clock, Users } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { Profile, WorkingHour, BankAccount, Payroll } from "@/types/database";
 import { useToast } from "@/hooks/use-toast";
@@ -35,6 +36,7 @@ export const PayrollGenerationWizard = ({ profiles, workingHours, onRefresh }: P
   const [filteredWorkingHours, setFilteredWorkingHours] = useState<WorkingHour[]>([]);
   const [overlappingPayrolls, setOverlappingPayrolls] = useState<string[]>([]);
   const [isWorkingHoursOpen, setIsWorkingHoursOpen] = useState(false);
+  const [quickSuggestions, setQuickSuggestions] = useState<any[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -55,6 +57,10 @@ export const PayrollGenerationWizard = ({ profiles, workingHours, onRefresh }: P
       setOverlappingPayrolls([]);
     }
   }, [selectedProfileIds, filteredWorkingHours, existingPayrolls]);
+
+  useEffect(() => {
+    generateQuickSuggestions();
+  }, [filteredProfiles, filteredWorkingHours]);
 
   const reloadFilteredData = async () => {
     try {
@@ -140,6 +146,41 @@ export const PayrollGenerationWizard = ({ profiles, workingHours, onRefresh }: P
     } finally {
       setFilterLoading(false);
     }
+  };
+
+  const generateQuickSuggestions = () => {
+    const suggestions = filteredProfiles.map(profile => {
+      const profileHours = filteredWorkingHours.filter(wh => wh.profile_id === profile.id);
+      const unpaidHours = profileHours.filter(wh => {
+        const isPaid = existingPayrolls.some(payroll => 
+          payroll.profile_id === profile.id &&
+          payroll.status === 'paid' &&
+          wh.date >= payroll.pay_period_start &&
+          wh.date <= payroll.pay_period_end
+        );
+        return !isPaid;
+      });
+
+      const totalHours = unpaidHours.reduce((sum, wh) => sum + wh.total_hours, 0);
+      const avgRate = unpaidHours.length > 0 
+        ? unpaidHours.reduce((sum, wh) => sum + (wh.hourly_rate || 0), 0) / unpaidHours.length 
+        : 0;
+
+      return {
+        profile,
+        totalHours,
+        avgRate,
+        workingHoursCount: unpaidHours.length,
+        estimatedPay: totalHours * avgRate
+      };
+    }).filter(s => s.totalHours > 0).sort((a, b) => b.totalHours - a.totalHours);
+
+    setQuickSuggestions(suggestions);
+  };
+
+  const selectAllSuggested = () => {
+    const suggestedIds = quickSuggestions.map(s => s.profile.id);
+    setSelectedProfileIds(suggestedIds);
   };
 
   const fetchBankAccounts = async () => {
@@ -354,6 +395,68 @@ export const PayrollGenerationWizard = ({ profiles, workingHours, onRefresh }: P
               <div>
                 <h3 className="text-lg font-semibold mb-4">Step 1: Select Profiles & Configure Pay Period</h3>
                 
+                {/* Quick Suggestions */}
+                {quickSuggestions.length > 0 && (
+                  <Card className="mb-6 bg-blue-50 border-blue-200">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Users className="h-5 w-5 text-blue-600" />
+                          <CardTitle className="text-base text-blue-800">Quick Generate Suggestions</CardTitle>
+                        </div>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={selectAllSuggested}
+                          className="text-blue-600 border-blue-300 hover:bg-blue-100"
+                        >
+                          Select All ({quickSuggestions.length})
+                        </Button>
+                      </div>
+                      <p className="text-sm text-blue-700">
+                        Employees with approved working hours available for payroll generation
+                      </p>
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {quickSuggestions.slice(0, 6).map((suggestion) => (
+                          <div 
+                            key={suggestion.profile.id} 
+                            className="p-3 bg-white rounded-lg border border-blue-200 hover:border-blue-300 transition-colors"
+                          >
+                            <div className="flex justify-between items-start mb-2">
+                              <div>
+                                <div className="font-medium text-sm text-gray-900">
+                                  {suggestion.profile.full_name}
+                                </div>
+                                <div className="text-xs text-gray-600">
+                                  {suggestion.profile.role}
+                                </div>
+                              </div>
+                              <Badge variant="secondary" className="text-xs">
+                                {suggestion.totalHours.toFixed(1)}h
+                              </Badge>
+                            </div>
+                            <div className="flex justify-between items-center text-xs text-gray-600">
+                              <span>{suggestion.workingHoursCount} entries</span>
+                              <span className="font-medium text-green-600">
+                                ${suggestion.estimatedPay.toFixed(0)}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      {quickSuggestions.length > 6 && (
+                        <div className="mt-3 text-center">
+                          <span className="text-sm text-blue-600">
+                            +{quickSuggestions.length - 6} more employees available
+                          </span>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+                
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   <div className="lg:col-span-2">
                     <div className="mb-4">
@@ -545,52 +648,64 @@ export const PayrollGenerationWizard = ({ profiles, workingHours, onRefresh }: P
                     </table>
                   </div>
 
-                  {/* Collapsible Working Hours Details */}
-                  <Collapsible open={isWorkingHoursOpen} onOpenChange={setIsWorkingHoursOpen}>
-                    <CollapsibleTrigger asChild>
-                      <Button variant="outline" className="w-full justify-between">
-                        <span>View Working Hours Details</span>
-                        {isWorkingHoursOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                      </Button>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="space-y-4 mt-4">
+                  {/* Working Hours Details - Always Visible */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <Clock className="h-4 w-4" />
+                        Working Hours Details
+                      </CardTitle>
+                      <p className="text-sm text-gray-600">
+                        Review the working hours included in this payroll calculation
+                      </p>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
                       {payrollPreview.map((preview) => (
-                        <Card key={preview.profile.id}>
-                          <CardHeader className="pb-3">
-                            <CardTitle className="text-base">{preview.profile.full_name}</CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="overflow-x-auto">
-                              <table className="w-full text-sm">
-                                <thead>
-                                  <tr className="border-b">
-                                    <th className="text-left py-2">Date</th>
-                                    <th className="text-left py-2">Client</th>
-                                    <th className="text-left py-2">Project</th>
-                                    <th className="text-left py-2">Hours</th>
-                                    <th className="text-left py-2">Rate</th>
-                                    <th className="text-left py-2">Amount</th>
+                        <div key={preview.profile.id} className="border rounded-lg p-4">
+                          <div className="flex justify-between items-center mb-3">
+                            <h4 className="font-medium text-gray-900">{preview.profile.full_name}</h4>
+                            <Badge variant="outline">
+                              {preview.workingHours.length} entries • {preview.totalHours.toFixed(1)} hours
+                            </Badge>
+                          </div>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="border-b border-gray-200">
+                                  <th className="text-left py-2 px-2">Date</th>
+                                  <th className="text-left py-2 px-2">Client</th>
+                                  <th className="text-left py-2 px-2">Project</th>
+                                  <th className="text-left py-2 px-2">Hours</th>
+                                  <th className="text-left py-2 px-2">Rate</th>
+                                  <th className="text-left py-2 px-2">Amount</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {preview.workingHours.map((wh: any) => (
+                                  <tr key={wh.id} className="border-b border-gray-100">
+                                    <td className="py-2 px-2">{new Date(wh.date).toLocaleDateString()}</td>
+                                    <td className="py-2 px-2">{wh.clients?.company || 'N/A'}</td>
+                                    <td className="py-2 px-2">{wh.projects?.name || 'N/A'}</td>
+                                    <td className="py-2 px-2">{wh.total_hours}h</td>
+                                    <td className="py-2 px-2">${(wh.hourly_rate || 0).toFixed(2)}/hr</td>
+                                    <td className="py-2 px-2">${(wh.total_hours * (wh.hourly_rate || 0)).toFixed(2)}</td>
                                   </tr>
-                                </thead>
-                                <tbody>
-                                  {preview.workingHours.map((wh: any) => (
-                                    <tr key={wh.id} className="border-b border-gray-100">
-                                      <td className="py-2">{new Date(wh.date).toLocaleDateString()}</td>
-                                      <td className="py-2">{wh.clients?.company || 'N/A'}</td>
-                                      <td className="py-2">{wh.projects?.name || 'N/A'}</td>
-                                      <td className="py-2">{wh.total_hours}h</td>
-                                      <td className="py-2">${wh.hourly_rate}/hr</td>
-                                      <td className="py-2">${(wh.total_hours * wh.hourly_rate).toFixed(2)}</td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          </CardContent>
-                        </Card>
+                                ))}
+                              </tbody>
+                              <tfoot>
+                                <tr className="border-t-2 border-gray-300 font-medium">
+                                  <td colSpan={3} className="py-2 px-2">Total</td>
+                                  <td className="py-2 px-2">{preview.totalHours.toFixed(1)}h</td>
+                                  <td className="py-2 px-2">-</td>
+                                  <td className="py-2 px-2">${preview.grossPay.toFixed(2)}</td>
+                                </tr>
+                              </tfoot>
+                            </table>
+                          </div>
+                        </div>
                       ))}
-                    </CollapsibleContent>
-                  </Collapsible>
+                    </CardContent>
+                  </Card>
                 </>
               )}
 
