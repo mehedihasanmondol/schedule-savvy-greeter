@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Plus, DollarSign, Calendar, FileText, Clock, User } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Plus, DollarSign, Calendar, FileText, Clock, User, ChevronDown, ChevronUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Payroll as PayrollType, Profile, WorkingHour } from "@/types/database";
 import { useToast } from "@/hooks/use-toast";
@@ -19,6 +20,7 @@ export const PayrollComponent = () => {
   const [profilesWithHours, setProfilesWithHours] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isWorkingHoursPreviewOpen, setIsWorkingHoursPreviewOpen] = useState(false);
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
@@ -371,28 +373,41 @@ export const PayrollComponent = () => {
                 )}
 
                 {previewWorkingHours.length > 0 && (
-                  <div className="border rounded-lg p-4">
-                    <h4 className="font-medium mb-3 flex items-center gap-2">
-                      <Clock className="h-4 w-4" />
-                      Working Hours Preview ({previewWorkingHours.length} entries)
-                    </h4>
-                    <div className="max-h-40 overflow-y-auto space-y-2">
-                      {previewWorkingHours.map((wh) => (
-                        <div key={wh.id} className="flex justify-between items-center text-sm bg-gray-50 p-2 rounded">
-                          <div>
-                            <span className="font-medium">{new Date(wh.date).toLocaleDateString()}</span>
-                            <span className="text-gray-600 ml-2">
-                              {wh.clients?.company || 'N/A'} - {wh.projects?.name || 'N/A'}
-                            </span>
-                          </div>
-                          <div className="text-right">
-                            <div>{wh.total_hours}h × ${wh.hourly_rate}/hr</div>
-                            <div className="font-medium">${(wh.total_hours * (wh.hourly_rate || 0)).toFixed(2)}</div>
-                          </div>
+                  <Collapsible open={isWorkingHoursPreviewOpen} onOpenChange={setIsWorkingHoursPreviewOpen}>
+                    <CollapsibleTrigger asChild>
+                      <Button variant="outline" className="w-full justify-between">
+                        <span className="flex items-center gap-2">
+                          <Clock className="h-4 w-4" />
+                          Working Hours Preview ({previewWorkingHours.length} entries)
+                        </span>
+                        {isWorkingHoursPreviewOpen ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="mt-3">
+                      <div className="border rounded-lg p-4">
+                        <div className="max-h-40 overflow-y-auto space-y-2">
+                          {previewWorkingHours.map((wh) => (
+                            <div key={wh.id} className="flex justify-between items-center text-sm bg-gray-50 p-2 rounded">
+                              <div>
+                                <span className="font-medium">{new Date(wh.date).toLocaleDateString()}</span>
+                                <span className="text-gray-600 ml-2">
+                                  {wh.clients?.company || 'N/A'} - {wh.projects?.name || 'N/A'}
+                                </span>
+                              </div>
+                              <div className="text-right">
+                                <div>{wh.total_hours}h × ${wh.hourly_rate}/hr</div>
+                                <div className="font-medium">${(wh.total_hours * (wh.hourly_rate || 0)).toFixed(2)}</div>
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
-                  </div>
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
                 )}
 
                 <Button type="submit" disabled={loading} className="w-full">
