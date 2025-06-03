@@ -977,6 +977,7 @@ export type Database = {
         | "utilities"
         | "marketing"
         | "other"
+        | "opening_balance"
       user_role:
         | "admin"
         | "employee"
@@ -1150,6 +1151,7 @@ export const Constants = {
         "utilities",
         "marketing",
         "other",
+        "opening_balance",
       ],
       user_role: [
         "admin",

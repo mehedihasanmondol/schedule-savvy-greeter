@@ -1,4 +1,3 @@
-
 export interface Profile {
   id: string;
   full_name: string;
@@ -86,7 +85,7 @@ export interface BankTransaction {
   description: string;
   amount: number;
   type: 'deposit' | 'withdrawal';
-  category: 'income' | 'expense' | 'transfer' | 'salary' | 'equipment' | 'materials' | 'travel' | 'office' | 'utilities' | 'marketing' | 'other';
+  category: 'income' | 'expense' | 'transfer' | 'salary' | 'equipment' | 'materials' | 'travel' | 'office' | 'utilities' | 'marketing' | 'opening_balance' | 'other';
   date: string;
   created_at: string;
   updated_at: string;
@@ -243,6 +242,6 @@ export type WorkingHoursStatus = 'pending' | 'approved' | 'rejected' | 'paid';
 export type NotificationActionType = 'approve' | 'confirm' | 'grant' | 'cancel' | 'reject' | 'none';
 export type NotificationPriority = 'low' | 'medium' | 'high';
 export type BankTransactionType = 'deposit' | 'withdrawal';
-export type TransactionCategory = 'income' | 'expense' | 'transfer' | 'salary' | 'equipment' | 'materials' | 'travel' | 'office' | 'utilities' | 'marketing' | 'other';
+export type TransactionCategory = 'income' | 'expense' | 'transfer' | 'salary' | 'equipment' | 'materials' | 'travel' | 'office' | 'utilities' | 'marketing' | 'opening_balance' | 'other';
 export type UserRole = 'admin' | 'employee' | 'accountant' | 'operation' | 'sales_manager';
 export type EmploymentType = 'full-time' | 'part-time' | 'casual';

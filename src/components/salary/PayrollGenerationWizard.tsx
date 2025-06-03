@@ -5,16 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calculator, DollarSign, AlertTriangle, RefreshCw } from "lucide-react";
+import { Calculator, DollarSign, AlertTriangle, RefreshCw, ChevronDown, ChevronUp } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { supabase } from "@/integrations/supabase/client";
 import { Profile, WorkingHour, BankAccount, Payroll } from "@/types/database";
 import { useToast } from "@/hooks/use-toast";
 import { EnhancedProfileSelector } from "./EnhancedProfileSelector";
-import type { Database } from "@/integrations/supabase/types";
-
-type WorkingHoursStatus = Database["public"]["Enums"]["working_hours_status"];
-type UserRole = Database["public"]["Enums"]["user_role"];
-type EmploymentType = Database["public"]["Enums"]["employment_type"];
 
 interface PayrollGenerationWizardProps {
   profiles: Profile[];
@@ -28,9 +24,6 @@ export const PayrollGenerationWizard = ({ profiles, workingHours, onRefresh }: P
     start: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     end: new Date().toISOString().split('T')[0]
   });
-  const [statusFilter, setStatusFilter] = useState<WorkingHoursStatus>('approved');
-  const [roleFilter, setRoleFilter] = useState<UserRole | 'all'>('all');
-  const [employmentTypeFilter, setEmploymentTypeFilter] = useState<EmploymentType | 'all'>('all');
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [selectedBankAccount, setSelectedBankAccount] = useState("");
   const [loading, setLoading] = useState(false);
@@ -41,6 +34,7 @@ export const PayrollGenerationWizard = ({ profiles, workingHours, onRefresh }: P
   const [filteredProfiles, setFilteredProfiles] = useState<Profile[]>([]);
   const [filteredWorkingHours, setFilteredWorkingHours] = useState<WorkingHour[]>([]);
   const [overlappingPayrolls, setOverlappingPayrolls] = useState<string[]>([]);
+  const [isWorkingHoursOpen, setIsWorkingHoursOpen] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -50,7 +44,7 @@ export const PayrollGenerationWizard = ({ profiles, workingHours, onRefresh }: P
 
   useEffect(() => {
     reloadFilteredData();
-  }, [dateRange, statusFilter, roleFilter, employmentTypeFilter]);
+  }, [dateRange]);
 
   useEffect(() => {
     if (selectedProfileIds.length > 0 && dateRange.start && dateRange.end) {
@@ -66,9 +60,9 @@ export const PayrollGenerationWizard = ({ profiles, workingHours, onRefresh }: P
     try {
       setFilterLoading(true);
       
-      console.log('Reloading filtered data with:', { dateRange, statusFilter, roleFilter, employmentTypeFilter });
+      console.log('Reloading filtered data with:', { dateRange });
       
-      // Fetch working hours based on date range and status
+      // Fetch only approved working hours based on date range
       const { data: workingHoursData, error: whError } = await supabase
         .from('working_hours')
         .select(`
@@ -79,7 +73,7 @@ export const PayrollGenerationWizard = ({ profiles, workingHours, onRefresh }: P
         `)
         .gte('date', dateRange.start)
         .lte('date', dateRange.end)
-        .eq('status', statusFilter)
+        .eq('status', 'approved')
         .order('date', { ascending: false });
 
       if (whError) {
@@ -87,12 +81,11 @@ export const PayrollGenerationWizard = ({ profiles, workingHours, onRefresh }: P
         throw whError;
       }
 
-      console.log('Fetched working hours:', workingHoursData?.length || 0);
+      console.log('Fetched approved working hours:', workingHoursData?.length || 0);
 
-      // Type assertion to handle the nested profile data structure
       const typedWorkingHours = (workingHoursData || []).map(wh => ({
         ...wh,
-        status: wh.status as WorkingHoursStatus
+        status: wh.status as 'approved'
       })) as WorkingHour[];
 
       setFilteredWorkingHours(typedWorkingHours);
@@ -101,19 +94,9 @@ export const PayrollGenerationWizard = ({ profiles, workingHours, onRefresh }: P
       const profileIdsFromWorkingHours = new Set(typedWorkingHours.map(wh => wh.profile_id));
       console.log('Profile IDs from working hours:', profileIdsFromWorkingHours.size);
 
-      // Filter profiles based on role and employment type
+      // Filter profiles that have working hours and unpaid hours
       let eligibleProfiles = profiles.filter(profile => {
         if (!profileIdsFromWorkingHours.has(profile.id)) {
-          return false;
-        }
-
-        // Filter by role
-        if (roleFilter !== 'all' && profile.role !== roleFilter) {
-          return false;
-        }
-
-        // Filter by employment type
-        if (employmentTypeFilter !== 'all' && profile.employment_type !== employmentTypeFilter) {
           return false;
         }
 
@@ -240,9 +223,10 @@ export const PayrollGenerationWizard = ({ profiles, workingHours, onRefresh }: P
         const overtimeHours = unpaidHours.reduce((sum, wh) => sum + (wh.overtime_hours || 0), 0);
         const regularHours = totalHours - overtimeHours;
         
-        const hourlyRate = profile.hourly_rate || 0;
-        const regularPay = regularHours * hourlyRate;
-        const overtimePay = overtimeHours * hourlyRate * 1.5;
+        // Use the working hours rate instead of profile rate
+        const workingHoursRate = unpaidHours.length > 0 ? unpaidHours[0].hourly_rate || 0 : profile.hourly_rate || 0;
+        const regularPay = regularHours * workingHoursRate;
+        const overtimePay = overtimeHours * workingHoursRate * 1.5;
         const grossPay = regularPay + overtimePay;
         
         const deductions = grossPay * 0.1;
@@ -254,7 +238,7 @@ export const PayrollGenerationWizard = ({ profiles, workingHours, onRefresh }: P
             totalHours,
             regularHours,
             overtimeHours,
-            hourlyRate,
+            hourlyRate: workingHoursRate,
             regularPay,
             overtimePay,
             grossPay,
@@ -368,14 +352,14 @@ export const PayrollGenerationWizard = ({ profiles, workingHours, onRefresh }: P
           {step === 1 && (
             <div className="space-y-6">
               <div>
-                <h3 className="text-lg font-semibold mb-4">Step 1: Configure Filters & Select Profiles</h3>
+                <h3 className="text-lg font-semibold mb-4">Step 1: Select Profiles & Configure Pay Period</h3>
                 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   <div className="lg:col-span-2">
                     <div className="mb-4">
                       <div className="flex items-center gap-2 text-sm text-blue-600 mb-2">
                         <Calculator className="h-4 w-4" />
-                        Showing employees with unpaid working hours for selected criteria
+                        Showing employees with unpaid approved working hours for selected period
                         {filterLoading && <RefreshCw className="h-4 w-4 animate-spin" />}
                       </div>
                     </div>
@@ -430,57 +414,6 @@ export const PayrollGenerationWizard = ({ profiles, workingHours, onRefresh }: P
                       </div>
                     </div>
 
-                    <div className="bg-blue-50 p-4 rounded-lg space-y-4">
-                      <h4 className="font-medium text-blue-700">Advanced Filters</h4>
-                      
-                      <div>
-                        <Label>Employee Role</Label>
-                        <Select value={roleFilter} onValueChange={(value: UserRole | 'all') => setRoleFilter(value)}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All Roles</SelectItem>
-                            <SelectItem value="admin">Admin</SelectItem>
-                            <SelectItem value="employee">Employee</SelectItem>
-                            <SelectItem value="accountant">Accountant</SelectItem>
-                            <SelectItem value="operation">Operation</SelectItem>
-                            <SelectItem value="sales_manager">Sales Manager</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div>
-                        <Label>Employment Type</Label>
-                        <Select value={employmentTypeFilter} onValueChange={(value: EmploymentType | 'all') => setEmploymentTypeFilter(value)}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All Types</SelectItem>
-                            <SelectItem value="full-time">Full-time</SelectItem>
-                            <SelectItem value="part-time">Part-time</SelectItem>
-                            <SelectItem value="casual">Casual</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div>
-                        <Label>Working Hours Status</Label>
-                        <Select value={statusFilter} onValueChange={(value: WorkingHoursStatus) => setStatusFilter(value)}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="approved">Approved</SelectItem>
-                            <SelectItem value="pending">Pending</SelectItem>
-                            <SelectItem value="rejected">Rejected</SelectItem>
-                            <SelectItem value="paid">Paid</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
                     <Button 
                       onClick={reloadFilteredData} 
                       variant="outline" 
@@ -509,7 +442,7 @@ export const PayrollGenerationWizard = ({ profiles, workingHours, onRefresh }: P
                       <div className="font-bold text-blue-600">{filteredProfiles.length}</div>
                     </div>
                     <div>
-                      <div className="text-gray-600">Unpaid Hours</div>
+                      <div className="text-gray-600">Approved Hours</div>
                       <div className="font-bold text-green-600">
                         {filteredWorkingHours.reduce((sum, wh) => sum + wh.total_hours, 0).toFixed(1)}
                       </div>
@@ -519,8 +452,8 @@ export const PayrollGenerationWizard = ({ profiles, workingHours, onRefresh }: P
                       <div className="font-bold">{dateRange.start} to {dateRange.end}</div>
                     </div>
                     <div>
-                      <div className="text-gray-600">Status Filter</div>
-                      <div className="font-bold capitalize">{statusFilter}</div>
+                      <div className="text-gray-600">Status</div>
+                      <div className="font-bold text-green-600">Approved Only</div>
                     </div>
                   </div>
                 </div>
@@ -571,45 +504,94 @@ export const PayrollGenerationWizard = ({ profiles, workingHours, onRefresh }: P
                   <p className="text-sm">Please ensure working hours are approved and not already paid.</p>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-gray-200">
-                        <th className="text-left py-3 px-4 font-medium text-gray-600">Employee</th>
-                        <th className="text-left py-3 px-4 font-medium text-gray-600">Hours</th>
-                        <th className="text-left py-3 px-4 font-medium text-gray-600">Rate</th>
-                        <th className="text-left py-3 px-4 font-medium text-gray-600">Gross Pay</th>
-                        <th className="text-left py-3 px-4 font-medium text-gray-600">Deductions</th>
-                        <th className="text-left py-3 px-4 font-medium text-gray-600">Net Pay</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {payrollPreview.map((preview) => (
-                        <tr key={preview.profile.id} className="border-b border-gray-100">
-                          <td className="py-3 px-4">
-                            <div>
-                              <div className="font-medium">{preview.profile.full_name}</div>
-                              <div className="text-sm text-gray-600">{preview.profile.role}</div>
-                            </div>
-                          </td>
-                          <td className="py-3 px-4">
-                            <div className="text-sm">
-                              <div>Regular: {preview.regularHours.toFixed(1)}h</div>
-                              {preview.overtimeHours > 0 && (
-                                <div className="text-orange-600">Overtime: {preview.overtimeHours.toFixed(1)}h</div>
-                              )}
-                              <div className="font-medium">Total: {preview.totalHours.toFixed(1)}h</div>
-                            </div>
-                          </td>
-                          <td className="py-3 px-4">${preview.hourlyRate.toFixed(2)}/hr</td>
-                          <td className="py-3 px-4">${preview.grossPay.toFixed(2)}</td>
-                          <td className="py-3 px-4 text-red-600">${preview.deductions.toFixed(2)}</td>
-                          <td className="py-3 px-4 font-bold text-green-600">${preview.netPay.toFixed(2)}</td>
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-gray-200">
+                          <th className="text-left py-3 px-4 font-medium text-gray-600">Employee</th>
+                          <th className="text-left py-3 px-4 font-medium text-gray-600">Hours</th>
+                          <th className="text-left py-3 px-4 font-medium text-gray-600">Rate</th>
+                          <th className="text-left py-3 px-4 font-medium text-gray-600">Gross Pay</th>
+                          <th className="text-left py-3 px-4 font-medium text-gray-600">Deductions</th>
+                          <th className="text-left py-3 px-4 font-medium text-gray-600">Net Pay</th>
                         </tr>
+                      </thead>
+                      <tbody>
+                        {payrollPreview.map((preview) => (
+                          <tr key={preview.profile.id} className="border-b border-gray-100">
+                            <td className="py-3 px-4">
+                              <div>
+                                <div className="font-medium">{preview.profile.full_name}</div>
+                                <div className="text-sm text-gray-600">{preview.profile.role}</div>
+                              </div>
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="text-sm">
+                                <div>Regular: {preview.regularHours.toFixed(1)}h</div>
+                                {preview.overtimeHours > 0 && (
+                                  <div className="text-orange-600">Overtime: {preview.overtimeHours.toFixed(1)}h</div>
+                                )}
+                                <div className="font-medium">Total: {preview.totalHours.toFixed(1)}h</div>
+                              </div>
+                            </td>
+                            <td className="py-3 px-4">${preview.hourlyRate.toFixed(2)}/hr</td>
+                            <td className="py-3 px-4">${preview.grossPay.toFixed(2)}</td>
+                            <td className="py-3 px-4 text-red-600">${preview.deductions.toFixed(2)}</td>
+                            <td className="py-3 px-4 font-bold text-green-600">${preview.netPay.toFixed(2)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Collapsible Working Hours Details */}
+                  <Collapsible open={isWorkingHoursOpen} onOpenChange={setIsWorkingHoursOpen}>
+                    <CollapsibleTrigger asChild>
+                      <Button variant="outline" className="w-full justify-between">
+                        <span>View Working Hours Details</span>
+                        {isWorkingHoursOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      </Button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="space-y-4 mt-4">
+                      {payrollPreview.map((preview) => (
+                        <Card key={preview.profile.id}>
+                          <CardHeader className="pb-3">
+                            <CardTitle className="text-base">{preview.profile.full_name}</CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-sm">
+                                <thead>
+                                  <tr className="border-b">
+                                    <th className="text-left py-2">Date</th>
+                                    <th className="text-left py-2">Client</th>
+                                    <th className="text-left py-2">Project</th>
+                                    <th className="text-left py-2">Hours</th>
+                                    <th className="text-left py-2">Rate</th>
+                                    <th className="text-left py-2">Amount</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {preview.workingHours.map((wh: any) => (
+                                    <tr key={wh.id} className="border-b border-gray-100">
+                                      <td className="py-2">{new Date(wh.date).toLocaleDateString()}</td>
+                                      <td className="py-2">{wh.clients?.company || 'N/A'}</td>
+                                      <td className="py-2">{wh.projects?.name || 'N/A'}</td>
+                                      <td className="py-2">{wh.total_hours}h</td>
+                                      <td className="py-2">${wh.hourly_rate}/hr</td>
+                                      <td className="py-2">${(wh.total_hours * wh.hourly_rate).toFixed(2)}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </CardContent>
+                        </Card>
                       ))}
-                    </tbody>
-                  </table>
-                </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+                </>
               )}
 
               <div className="flex justify-between">
