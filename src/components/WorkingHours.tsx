@@ -257,17 +257,24 @@ export const WorkingHoursComponent = () => {
   };
 
   const bulkApprove = async () => {
-    const idsToApprove = selectedWorkingHours.length > 0 
-      ? selectedWorkingHours.filter(id => {
-          const wh = filteredWorkingHours.find(w => w.id === id);
-          return wh?.status === 'pending';
-        })
-      : filteredWorkingHours.filter(wh => wh.status === 'pending').map(wh => wh.id);
+    if (selectedWorkingHours.length === 0) {
+      toast({
+        title: "No selection",
+        description: "Please select working hours to approve",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const idsToApprove = selectedWorkingHours.filter(id => {
+      const wh = filteredWorkingHours.find(w => w.id === id);
+      return wh?.status === 'pending';
+    });
     
     if (idsToApprove.length === 0) {
       toast({
         title: "No pending hours",
-        description: "There are no pending working hours to approve",
+        description: "Selected working hours are not pending approval",
         variant: "destructive"
       });
       return;
@@ -338,10 +345,8 @@ export const WorkingHoursComponent = () => {
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      const pendingIds = filteredWorkingHours
-        .filter(wh => wh.status === 'pending')
-        .map(wh => wh.id);
-      setSelectedWorkingHours(pendingIds);
+      const allIds = filteredWorkingHours.map(wh => wh.id);
+      setSelectedWorkingHours(allIds);
     } else {
       setSelectedWorkingHours([]);
     }
@@ -381,6 +386,9 @@ export const WorkingHoursComponent = () => {
     const wh = filteredWorkingHours.find(w => w.id === id);
     return wh?.status === 'pending';
   }).length;
+
+  const allSelected = filteredWorkingHours.length > 0 && selectedWorkingHours.length === filteredWorkingHours.length;
+  const someSelected = selectedWorkingHours.length > 0;
 
   if (loading && workingHours.length === 0) {
     return <div className="flex justify-center items-center h-64">Loading...</div>;
@@ -634,17 +642,16 @@ export const WorkingHoursComponent = () => {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>Enhanced Working Hours Log ({filteredWorkingHours.length})</CardTitle>
-            {pendingWorkingHours.length > 0 && (
-              <Button 
-                onClick={bulkApprove}
-                className="flex items-center gap-2"
-                variant="outline"
-                size="sm"
-              >
-                <CheckSquare className="h-4 w-4" />
-                Bulk Approve {selectedPendingCount > 0 ? `(${selectedPendingCount})` : `(${pendingWorkingHours.length})`}
-              </Button>
-            )}
+            <Button 
+              onClick={bulkApprove}
+              className="flex items-center gap-2"
+              variant="outline"
+              size="sm"
+              disabled={selectedPendingCount === 0}
+            >
+              <CheckSquare className="h-4 w-4" />
+              Bulk Approve {selectedPendingCount > 0 ? `(${selectedPendingCount})` : ''}
+            </Button>
           </div>
         </CardHeader>
         <CardContent>
@@ -653,12 +660,11 @@ export const WorkingHoursComponent = () => {
               <thead>
                 <tr className="border-b border-gray-200">
                   <th className="text-left py-3 px-4 font-medium text-gray-600">
-                    {pendingWorkingHours.length > 0 && (
-                      <Checkbox
-                        checked={pendingWorkingHours.length > 0 && selectedWorkingHours.length === pendingWorkingHours.length}
-                        onCheckedChange={handleSelectAll}
-                      />
-                    )}
+                    <Checkbox
+                      checked={allSelected}
+                      onCheckedChange={handleSelectAll}
+                      className={someSelected && !allSelected ? "data-[state=checked]:bg-blue-600" : ""}
+                    />
                   </th>
                   <th className="text-left py-3 px-4 font-medium text-gray-600">Profile</th>
                   <th className="text-left py-3 px-4 font-medium text-gray-600">Project</th>
@@ -675,12 +681,10 @@ export const WorkingHoursComponent = () => {
                 {filteredWorkingHours.map((wh) => (
                   <tr key={wh.id} className="border-b border-gray-100 hover:bg-gray-50">
                     <td className="py-3 px-4">
-                      {wh.status === 'pending' && (
-                        <Checkbox
-                          checked={selectedWorkingHours.includes(wh.id)}
-                          onCheckedChange={(checked) => handleSelectWorkingHour(wh.id, checked as boolean)}
-                        />
-                      )}
+                      <Checkbox
+                        checked={selectedWorkingHours.includes(wh.id)}
+                        onCheckedChange={(checked) => handleSelectWorkingHour(wh.id, checked as boolean)}
+                      />
                     </td>
                     <td className="py-3 px-4">
                       <div>
