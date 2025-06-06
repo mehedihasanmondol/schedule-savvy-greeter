@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, DollarSign, Calendar, FileText, Clock, Zap } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import type { Payroll as PayrollType, Profile, WorkingHour, BankAccount } from "@/types/database";
+import type { Payroll as PayrollType, Profile, WorkingHour, BankAccount, Client, Project } from "@/types/database";
 import { useToast } from "@/hooks/use-toast";
 import { PayrollDetailsDialog } from "@/components/salary/PayrollDetailsDialog";
 import { BankSelectionDialog } from "@/components/payroll/BankSelectionDialog";
@@ -19,6 +19,8 @@ export const PayrollComponent = () => {
   const [workingHours, setWorkingHours] = useState<WorkingHour[]>([]);
   const [profilesWithHours, setProfilesWithHours] = useState<Profile[]>([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPayrollForView, setSelectedPayrollForView] = useState<PayrollType | null>(null);
   const [selectedPayrollForEdit, setSelectedPayrollForEdit] = useState<PayrollType | null>(null);
@@ -34,6 +36,7 @@ export const PayrollComponent = () => {
     fetchProfiles();
     fetchWorkingHours();
     fetchBankAccounts();
+    fetchClientsAndProjects();
   }, []);
 
   const fetchPayrolls = async () => {
@@ -101,6 +104,23 @@ export const PayrollComponent = () => {
     }
   };
 
+  const fetchClientsAndProjects = async () => {
+    try {
+      const [clientsRes, projectsRes] = await Promise.all([
+        supabase.from('clients').select('*').eq('status', 'active').order('company'),
+        supabase.from('projects').select('*').eq('status', 'active').order('name')
+      ]);
+
+      if (clientsRes.error) throw clientsRes.error;
+      if (projectsRes.error) throw projectsRes.error;
+
+      setClients(clientsRes.data as Client[]);
+      setProjects(projectsRes.data as Project[]);
+    } catch (error) {
+      console.error('Error fetching clients and projects:', error);
+    }
+  };
+
   const fetchWorkingHours = async () => {
     try {
       const { data, error } = await supabase
@@ -145,7 +165,6 @@ export const PayrollComponent = () => {
     try {
       const payroll = selectedPayrollForPayment;
 
-      // Get bank account details
       const { data: bankAccount, error: bankError } = await supabase
         .from('bank_accounts')
         .select('opening_balance')
@@ -154,7 +173,6 @@ export const PayrollComponent = () => {
 
       if (bankError) throw bankError;
 
-      // Get current balance by calculating all transactions
       const { data: transactions, error: transError } = await supabase
         .from('bank_transactions')
         .select('amount, type')
@@ -174,7 +192,6 @@ export const PayrollComponent = () => {
         return;
       }
 
-      // Create withdrawal transaction
       const { error: transactionError } = await supabase
         .from('bank_transactions')
         .insert({
@@ -189,7 +206,6 @@ export const PayrollComponent = () => {
 
       if (transactionError) throw transactionError;
 
-      // Update payroll status and bank account
       const { error } = await supabase
         .from('payroll')
         .update({ 
@@ -200,7 +216,6 @@ export const PayrollComponent = () => {
 
       if (error) throw error;
 
-      // Send notification for payment
       const { error: notificationError } = await supabase
         .from('notifications')
         .insert({
@@ -265,7 +280,6 @@ export const PayrollComponent = () => {
 
   const handleCreatePayroll = () => {
     // This will trigger the PayrollQuickGenerate dialog
-    // We can pass this function to both tabs
   };
 
   const handleEditPayroll = (payroll: PayrollType) => {
@@ -313,7 +327,6 @@ export const PayrollComponent = () => {
           </div>
         </div>
         
-        {/* Create Payroll Button */}
         {profiles.length > 0 && (
           <PayrollCreateDialog
             profiles={profiles}
@@ -392,9 +405,11 @@ export const PayrollComponent = () => {
             onEditPayroll={handleEditPayroll}
             onDeletePayroll={handleDeletePayroll}
             loading={loading}
-            profiles={[]}
-            profilesWithHours={[]}
-            workingHours={[]}
+            profiles={profiles}
+            profilesWithHours={profilesWithHours}
+            workingHours={workingHours}
+            clients={clients}
+            projects={projects}
             onRefresh={fetchPayrolls}
           />
         </TabsContent>
@@ -442,7 +457,6 @@ export const PayrollComponent = () => {
                         : profile.hourly_rate || 0;
                       const estimatedPay = totalHours * avgRate;
                       
-                      // Get date range of available hours
                       const dates = profileHours.map(wh => new Date(wh.date)).sort((a, b) => a.getTime() - b.getTime());
                       const startDate = dates[0]?.toLocaleDateString();
                       const endDate = dates[dates.length - 1]?.toLocaleDateString();
