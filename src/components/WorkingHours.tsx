@@ -16,6 +16,7 @@ import { WorkingHoursActions } from "@/components/working-hours/WorkingHoursActi
 import { WorkingHoursViewDialog } from "@/components/working-hours/WorkingHoursViewDialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export const WorkingHoursComponent = () => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -26,6 +27,7 @@ export const WorkingHoursComponent = () => {
   const [dateShortcut, setDateShortcut] = useState("current-week");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [selectedWorkingHours, setSelectedWorkingHours] = useState<string[]>([]);
   
   const [workingHours, setWorkingHours] = useState<WorkingHour[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -255,9 +257,14 @@ export const WorkingHoursComponent = () => {
   };
 
   const bulkApprove = async () => {
-    const pendingHours = filteredWorkingHours.filter(wh => wh.status === 'pending');
+    const idsToApprove = selectedWorkingHours.length > 0 
+      ? selectedWorkingHours.filter(id => {
+          const wh = filteredWorkingHours.find(w => w.id === id);
+          return wh?.status === 'pending';
+        })
+      : filteredWorkingHours.filter(wh => wh.status === 'pending').map(wh => wh.id);
     
-    if (pendingHours.length === 0) {
+    if (idsToApprove.length === 0) {
       toast({
         title: "No pending hours",
         description: "There are no pending working hours to approve",
@@ -270,14 +277,15 @@ export const WorkingHoursComponent = () => {
       const { error } = await supabase
         .from('working_hours')
         .update({ status: 'approved' })
-        .in('id', pendingHours.map(wh => wh.id));
+        .in('id', idsToApprove);
 
       if (error) throw error;
       
       toast({ 
         title: "Success", 
-        description: `${pendingHours.length} working hours approved successfully` 
+        description: `${idsToApprove.length} working hours approved successfully` 
       });
+      setSelectedWorkingHours([]);
       fetchWorkingHours();
     } catch (error) {
       console.error('Error bulk approving:', error);
@@ -315,6 +323,7 @@ export const WorkingHoursComponent = () => {
 
         if (error) throw error;
         toast({ title: "Success", description: "Working hours deleted successfully" });
+        setSelectedWorkingHours(prev => prev.filter(selectedId => selectedId !== id));
         fetchWorkingHours();
       } catch (error) {
         console.error('Error deleting working hours:', error);
@@ -324,6 +333,25 @@ export const WorkingHoursComponent = () => {
           variant: "destructive"
         });
       }
+    }
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      const pendingIds = filteredWorkingHours
+        .filter(wh => wh.status === 'pending')
+        .map(wh => wh.id);
+      setSelectedWorkingHours(pendingIds);
+    } else {
+      setSelectedWorkingHours([]);
+    }
+  };
+
+  const handleSelectWorkingHour = (id: string, checked: boolean) => {
+    if (checked) {
+      setSelectedWorkingHours(prev => [...prev, id]);
+    } else {
+      setSelectedWorkingHours(prev => prev.filter(selectedId => selectedId !== id));
     }
   };
 
@@ -349,6 +377,10 @@ export const WorkingHoursComponent = () => {
   });
 
   const pendingWorkingHours = filteredWorkingHours.filter(wh => wh.status === 'pending');
+  const selectedPendingCount = selectedWorkingHours.filter(id => {
+    const wh = filteredWorkingHours.find(w => w.id === id);
+    return wh?.status === 'pending';
+  }).length;
 
   if (loading && workingHours.length === 0) {
     return <div className="flex justify-center items-center h-64">Loading...</div>;
@@ -365,16 +397,6 @@ export const WorkingHoursComponent = () => {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {pendingWorkingHours.length > 0 && (
-            <Button 
-              onClick={bulkApprove}
-              className="flex items-center gap-2"
-              variant="outline"
-            >
-              <CheckSquare className="h-4 w-4" />
-              Bulk Approve ({pendingWorkingHours.length})
-            </Button>
-          )}
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button className="flex items-center gap-2">
@@ -610,13 +632,34 @@ export const WorkingHoursComponent = () => {
 
       <Card>
         <CardHeader>
-          <CardTitle>Enhanced Working Hours Log ({filteredWorkingHours.length})</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Enhanced Working Hours Log ({filteredWorkingHours.length})</CardTitle>
+            {pendingWorkingHours.length > 0 && (
+              <Button 
+                onClick={bulkApprove}
+                className="flex items-center gap-2"
+                variant="outline"
+                size="sm"
+              >
+                <CheckSquare className="h-4 w-4" />
+                Bulk Approve {selectedPendingCount > 0 ? `(${selectedPendingCount})` : `(${pendingWorkingHours.length})`}
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-200">
+                  <th className="text-left py-3 px-4 font-medium text-gray-600">
+                    {pendingWorkingHours.length > 0 && (
+                      <Checkbox
+                        checked={pendingWorkingHours.length > 0 && selectedWorkingHours.length === pendingWorkingHours.length}
+                        onCheckedChange={handleSelectAll}
+                      />
+                    )}
+                  </th>
                   <th className="text-left py-3 px-4 font-medium text-gray-600">Profile</th>
                   <th className="text-left py-3 px-4 font-medium text-gray-600">Project</th>
                   <th className="text-left py-3 px-4 font-medium text-gray-600">Date</th>
@@ -631,6 +674,14 @@ export const WorkingHoursComponent = () => {
               <tbody>
                 {filteredWorkingHours.map((wh) => (
                   <tr key={wh.id} className="border-b border-gray-100 hover:bg-gray-50">
+                    <td className="py-3 px-4">
+                      {wh.status === 'pending' && (
+                        <Checkbox
+                          checked={selectedWorkingHours.includes(wh.id)}
+                          onCheckedChange={(checked) => handleSelectWorkingHour(wh.id, checked as boolean)}
+                        />
+                      )}
+                    </td>
                     <td className="py-3 px-4">
                       <div>
                         <div className="font-medium text-gray-900">{wh.profiles?.full_name || 'N/A'}</div>
