@@ -114,9 +114,9 @@ export const Auth = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-blue-50 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-blue-50 px-4 py-6">
       <div className="w-full max-w-md">
-        <div className="mb-6">
+        <div className="mb-4">
           <Link to="/" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground transition-colors">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Home
@@ -124,30 +124,30 @@ export const Auth = () => {
         </div>
         
         <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
-          <CardHeader className="text-center pb-6">
-            <div className="mx-auto w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg">
-              <User className="h-8 w-8 text-white" />
+          <CardHeader className="text-center pb-4">
+            <div className="mx-auto w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center mb-3 shadow-lg">
+              <User className="h-6 w-6 text-white" />
             </div>
-            <CardTitle className="text-2xl font-bold">
+            <CardTitle className="text-xl font-bold">
               {isSignUp ? "Create Account" : "Welcome Back"}
             </CardTitle>
-            <p className="text-muted-foreground text-sm">
+            <p className="text-muted-foreground text-xs">
               {isSignUp 
                 ? "Join Schedule & Payroll Manager today"
                 : "Sign in to your account"
               }
             </p>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-4 px-6 pb-6">
             {/* Social Login Buttons - Side by Side */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2">
               <Button
                 variant="outline"
-                className="w-full h-11"
+                className="w-full h-9 text-xs"
                 onClick={() => handleSocialAuth('google')}
                 disabled={loading}
               >
-                <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">
+                <svg className="w-3 h-3 mr-1" viewBox="0 0 24 24">
                   <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                   <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
                   <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
@@ -158,11 +158,11 @@ export const Auth = () => {
               
               <Button
                 variant="outline"
-                className="w-full h-11"
+                className="w-full h-9 text-xs"
                 onClick={() => handleSocialAuth('facebook')}
                 disabled={loading}
               >
-                <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
                 </svg>
                 Facebook
@@ -181,94 +181,94 @@ export const Auth = () => {
             </div>
 
             {/* Email/Password Form */}
-            <form onSubmit={handleEmailAuth} className="space-y-4">
+            <form onSubmit={handleEmailAuth} className="space-y-3">
               {isSignUp && (
-                <div className="space-y-2">
-                  <Label htmlFor="fullName" className="text-sm font-medium">Full Name</Label>
+                <div className="space-y-1">
+                  <Label htmlFor="fullName" className="text-xs font-medium">Full Name</Label>
                   <Input
                     id="fullName"
                     type="text"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     placeholder="Enter your full name"
-                    className="h-11"
+                    className="h-9 text-sm"
                     required={isSignUp}
                   />
                 </div>
               )}
               
-              <div className="space-y-2">
-                <Label htmlFor="email" className="text-sm font-medium">Email</Label>
+              <div className="space-y-1">
+                <Label htmlFor="email" className="text-xs font-medium">Email</Label>
                 <Input
                   id="email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="Enter your email"
-                  className="h-11"
+                  className="h-9 text-sm"
                   required
                 />
               </div>
               
-              <div className="space-y-2">
-                <Label htmlFor="password" className="text-sm font-medium">Password</Label>
+              <div className="space-y-1">
+                <Label htmlFor="password" className="text-xs font-medium">Password</Label>
                 <Input
                   id="password"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your password"
-                  className="h-11"
+                  className="h-9 text-sm"
                   required
                 />
               </div>
 
-              {/* Remember Me and Login Button Row */}
+              {/* Remember Me and Forgot Password Row */}
               {!isSignUp ? (
-                <div className="flex items-center justify-between pt-2">
+                <div className="flex items-center justify-between py-1">
                   <div className="flex items-center space-x-2">
                     <Checkbox
                       id="rememberMe"
                       checked={rememberMe}
                       onCheckedChange={(checked) => setRememberMe(checked as boolean)}
                     />
-                    <Label htmlFor="rememberMe" className="text-sm font-normal cursor-pointer">
+                    <Label htmlFor="rememberMe" className="text-xs font-normal cursor-pointer">
                       Remember me
                     </Label>
                   </div>
                   <Button
                     variant="link"
-                    className="px-0 text-sm h-auto"
+                    className="px-0 text-xs h-auto"
                     type="button"
                   >
                     Forgot password?
                   </Button>
                 </div>
               ) : (
-                <div className="pt-2" />
+                <div className="py-1" />
               )}
               
-              <Button type="submit" disabled={loading} className="w-full h-11 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700">
+              <Button type="submit" disabled={loading} className="w-full h-9 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-sm">
                 {loading ? (
                   <div className="flex items-center">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-2"></div>
                     Please wait...
                   </div>
                 ) : (
                   <>
-                    {isSignUp ? <UserPlus className="h-4 w-4 mr-2" /> : <LogIn className="h-4 w-4 mr-2" />}
+                    {isSignUp ? <UserPlus className="h-3 w-3 mr-2" /> : <LogIn className="h-3 w-3 mr-2" />}
                     {isSignUp ? "Create Account" : "Sign In"}
                   </>
                 )}
               </Button>
             </form>
 
-            <div className="text-center pt-4">
+            <div className="text-center pt-2">
               <Button
                 variant="link"
                 onClick={() => setIsSignUp(!isSignUp)}
                 disabled={loading}
-                className="text-sm"
+                className="text-xs"
               >
                 {isSignUp 
                   ? "Already have an account? Sign in"
