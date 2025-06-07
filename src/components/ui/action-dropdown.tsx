@@ -8,7 +8,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-interface ActionItem {
+export interface ActionItem {
   label: string;
   onClick: () => void;
   icon: React.ReactNode;
