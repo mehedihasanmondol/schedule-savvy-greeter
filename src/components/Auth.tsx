@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
 import { LogIn, Mail, User, UserPlus, ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -17,6 +18,7 @@ export const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
   const { toast } = useToast();
   const { user, profile } = useAuth();
   const navigate = useNavigate();
@@ -54,10 +56,24 @@ export const Auth = () => {
           description: "We've sent you a confirmation link to complete your registration."
         });
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password
-        });
+        // Configure session persistence based on remember me option
+        const authOptions = rememberMe 
+          ? {
+              email,
+              password,
+              options: {
+                persistSession: true
+              }
+            }
+          : {
+              email,
+              password,
+              options: {
+                persistSession: false
+              }
+            };
+
+        const { error } = await supabase.auth.signInWithPassword(authOptions);
 
         if (error) throw error;
 
@@ -200,6 +216,19 @@ export const Auth = () => {
                   required
                 />
               </div>
+
+              {!isSignUp && (
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="rememberMe"
+                    checked={rememberMe}
+                    onCheckedChange={(checked) => setRememberMe(checked as boolean)}
+                  />
+                  <Label htmlFor="rememberMe" className="text-sm font-normal cursor-pointer">
+                    Remember me
+                  </Label>
+                </div>
+              )}
               
               <Button type="submit" disabled={loading} className="w-full">
                 {loading ? "Please wait..." : (
