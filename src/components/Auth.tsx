@@ -56,26 +56,20 @@ export const Auth = () => {
           description: "We've sent you a confirmation link to complete your registration."
         });
       } else {
-        // Configure session persistence based on remember me option
-        const authOptions = rememberMe 
-          ? {
-              email,
-              password,
-              options: {
-                persistSession: true
-              }
-            }
-          : {
-              email,
-              password,
-              options: {
-                persistSession: false
-              }
-            };
-
-        const { error } = await supabase.auth.signInWithPassword(authOptions);
+        // For sign in, we handle session persistence at the client level
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password
+        });
 
         if (error) throw error;
+
+        // Store remember me preference in localStorage for future sessions
+        if (rememberMe) {
+          localStorage.setItem('rememberMe', 'true');
+        } else {
+          localStorage.removeItem('rememberMe');
+        }
 
         toast({
           title: "Welcome back!",
@@ -120,36 +114,36 @@ export const Auth = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-blue-50 px-4">
       <div className="w-full max-w-md">
-        <div className="mb-4">
-          <Link to="/" className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900">
+        <div className="mb-6">
+          <Link to="/" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground transition-colors">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Home
           </Link>
         </div>
         
-        <Card>
-          <CardHeader className="text-center">
-            <div className="mx-auto w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-4">
-              <User className="h-6 w-6 text-blue-600" />
+        <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
+          <CardHeader className="text-center pb-6">
+            <div className="mx-auto w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg">
+              <User className="h-8 w-8 text-white" />
             </div>
-            <CardTitle className="text-2xl">
+            <CardTitle className="text-2xl font-bold">
               {isSignUp ? "Create Account" : "Welcome Back"}
             </CardTitle>
-            <p className="text-gray-600">
+            <p className="text-muted-foreground text-sm">
               {isSignUp 
-                ? "Sign up to get started with Schedule & Payroll Manager"
+                ? "Join Schedule & Payroll Manager today"
                 : "Sign in to your account"
               }
             </p>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Social Login Buttons */}
-            <div className="space-y-2">
+          <CardContent className="space-y-6">
+            {/* Social Login Buttons - Side by Side */}
+            <div className="grid grid-cols-2 gap-3">
               <Button
                 variant="outline"
-                className="w-full"
+                className="w-full h-11"
                 onClick={() => handleSocialAuth('google')}
                 disabled={loading}
               >
@@ -159,79 +153,108 @@ export const Auth = () => {
                   <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
                   <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                 </svg>
-                Continue with Google
+                Google
               </Button>
               
               <Button
                 variant="outline"
-                className="w-full"
+                className="w-full h-11"
                 onClick={() => handleSocialAuth('facebook')}
                 disabled={loading}
               >
                 <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
                 </svg>
-                Continue with Facebook
+                Facebook
               </Button>
             </div>
 
-            <Separator />
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">
+                  Or continue with email
+                </span>
+              </div>
+            </div>
 
             {/* Email/Password Form */}
             <form onSubmit={handleEmailAuth} className="space-y-4">
               {isSignUp && (
-                <div>
-                  <Label htmlFor="fullName">Full Name</Label>
+                <div className="space-y-2">
+                  <Label htmlFor="fullName" className="text-sm font-medium">Full Name</Label>
                   <Input
                     id="fullName"
                     type="text"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     placeholder="Enter your full name"
+                    className="h-11"
                     required={isSignUp}
                   />
                 </div>
               )}
               
-              <div>
-                <Label htmlFor="email">Email</Label>
+              <div className="space-y-2">
+                <Label htmlFor="email" className="text-sm font-medium">Email</Label>
                 <Input
                   id="email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="Enter your email"
+                  className="h-11"
                   required
                 />
               </div>
               
-              <div>
-                <Label htmlFor="password">Password</Label>
+              <div className="space-y-2">
+                <Label htmlFor="password" className="text-sm font-medium">Password</Label>
                 <Input
                   id="password"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your password"
+                  className="h-11"
                   required
                 />
               </div>
 
-              {!isSignUp && (
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="rememberMe"
-                    checked={rememberMe}
-                    onCheckedChange={(checked) => setRememberMe(checked as boolean)}
-                  />
-                  <Label htmlFor="rememberMe" className="text-sm font-normal cursor-pointer">
-                    Remember me
-                  </Label>
+              {/* Remember Me and Login Button Row */}
+              {!isSignUp ? (
+                <div className="flex items-center justify-between pt-2">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="rememberMe"
+                      checked={rememberMe}
+                      onCheckedChange={(checked) => setRememberMe(checked as boolean)}
+                    />
+                    <Label htmlFor="rememberMe" className="text-sm font-normal cursor-pointer">
+                      Remember me
+                    </Label>
+                  </div>
+                  <Button
+                    variant="link"
+                    className="px-0 text-sm h-auto"
+                    type="button"
+                  >
+                    Forgot password?
+                  </Button>
                 </div>
+              ) : (
+                <div className="pt-2" />
               )}
               
-              <Button type="submit" disabled={loading} className="w-full">
-                {loading ? "Please wait..." : (
+              <Button type="submit" disabled={loading} className="w-full h-11 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700">
+                {loading ? (
+                  <div className="flex items-center">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Please wait...
+                  </div>
+                ) : (
                   <>
                     {isSignUp ? <UserPlus className="h-4 w-4 mr-2" /> : <LogIn className="h-4 w-4 mr-2" />}
                     {isSignUp ? "Create Account" : "Sign In"}
@@ -240,11 +263,12 @@ export const Auth = () => {
               </Button>
             </form>
 
-            <div className="text-center">
+            <div className="text-center pt-4">
               <Button
                 variant="link"
                 onClick={() => setIsSignUp(!isSignUp)}
                 disabled={loading}
+                className="text-sm"
               >
                 {isSignUp 
                   ? "Already have an account? Sign in"
