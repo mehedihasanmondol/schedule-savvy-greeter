@@ -9,54 +9,13 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Clock, ChevronDown, ChevronUp, Zap, Link } from "lucide-react";
-import type { Payroll as PayrollType, WorkingHour } from "@/types/database";
+import type { Payroll as PayrollType, WorkingHour, PayrollWorkingHours } from "@/types/database";
 
 interface PayrollEditDialogProps {
   payroll: PayrollType | null;
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
-}
-
-interface PayrollWorkingHoursWithDetails {
-  id: string;
-  payroll_id: string;
-  working_hours_id: string;
-  created_at: string;
-  working_hours: {
-    id: string;
-    profile_id: string;
-    client_id: string;
-    project_id: string;
-    date: string;
-    start_time: string;
-    end_time: string;
-    total_hours: number;
-    status: 'pending' | 'approved' | 'rejected' | 'paid';
-    roster_id?: string;
-    created_at: string;
-    updated_at: string;
-    sign_in_time?: string;
-    sign_out_time?: string;
-    actual_hours?: number;
-    overtime_hours?: number;
-    hourly_rate?: number;
-    payable_amount?: number;
-    notes?: string;
-    clients?: {
-      id: string;
-      name: string;
-      company: string;
-      email: string;
-      status: string;
-      created_at: string;
-      updated_at: string;
-    };
-    projects?: {
-      id: string;
-      name: string;
-    };
-  };
 }
 
 export const PayrollEditDialog = ({ payroll, isOpen, onClose, onSuccess }: PayrollEditDialogProps) => {
@@ -113,35 +72,8 @@ export const PayrollEditDialog = ({ payroll, isOpen, onClose, onSuccess }: Payro
 
       if (error) throw error;
       
-      // Extract and transform the working hours from the linked records
-      const workingHours = (data as PayrollWorkingHoursWithDetails[] || []).map((item) => {
-        const wh = item.working_hours;
-        return {
-          ...wh,
-          // Ensure proper type structure for clients and projects
-          clients: wh.clients ? {
-            id: wh.clients.id,
-            name: wh.clients.name,
-            email: wh.clients.email,
-            company: wh.clients.company,
-            status: wh.clients.status as 'active' | 'inactive',
-            created_at: wh.clients.created_at,
-            updated_at: wh.clients.updated_at
-          } : undefined,
-          projects: wh.projects ? {
-            id: wh.projects.id,
-            name: wh.projects.name,
-            description: '',
-            client_id: wh.client_id,
-            status: 'active' as 'active' | 'completed' | 'on-hold',
-            start_date: new Date().toISOString().split('T')[0],
-            budget: 0,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          } : undefined
-        } as WorkingHour;
-      });
-      
+      // Extract the working hours from the linked records
+      const workingHours = (data || []).map((item: PayrollWorkingHours & { working_hours: WorkingHour }) => item.working_hours);
       setLinkedWorkingHours(workingHours);
       setIsWorkingHoursPreviewOpen(workingHours.length > 0);
     } catch (error) {
