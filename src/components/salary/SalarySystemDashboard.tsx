@@ -87,7 +87,7 @@ export const SalarySystemDashboard = () => {
           <Calculator className="h-6 w-6 sm:h-8 sm:w-8 text-green-600" />
           <div>
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">Salary System</h1>
-            <p className="text-sm sm:text-base text-gray-600">Manage payroll, salary sheets, and reports</p>
+            <p className="text-sm sm:text-base text-gray-600">Manage payroll, salary sheets, and reports with automatic working hours linking</p>
           </div>
         </div>
       </div>
