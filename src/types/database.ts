@@ -1,4 +1,3 @@
-
 export interface Profile {
   id: string;
   full_name: string;
@@ -149,15 +148,6 @@ export interface Payroll {
   bank_account_id?: string;
   profiles?: Profile;
   bank_accounts?: BankAccount;
-}
-
-export interface PayrollWorkingHours {
-  id: string;
-  payroll_id: string;
-  working_hours_id: string;
-  created_at: string;
-  working_hours?: WorkingHour;
-  payroll?: Payroll;
 }
 
 export interface BulkPayroll {
