@@ -215,6 +215,8 @@ export const RosterComponent = () => {
 
       if (rosterError) throw rosterError;
 
+      console.log('Roster created:', roster);
+
       // Create roster_profiles entries for all selected profiles
       const rosterProfilesData = formData.profile_ids.map(profileId => ({
         roster_id: roster.id,
@@ -227,8 +229,35 @@ export const RosterComponent = () => {
 
       if (profilesError) throw profilesError;
 
-      toast({ title: "Success", description: "Roster created successfully" });
-      
+      console.log('Roster profiles created:', rosterProfilesData);
+
+      // The database trigger should automatically create working hours
+      // Let's verify by checking if working hours were created
+      setTimeout(async () => {
+        const { data: workingHours, error: whError } = await supabase
+          .from('working_hours')
+          .select('*')
+          .eq('roster_id', roster.id);
+          
+        if (whError) {
+          console.error('Error checking working hours:', whError);
+        } else {
+          console.log('Working hours created:', workingHours);
+          if (workingHours.length === 0) {
+            toast({
+              title: "Warning",
+              description: "Roster created but working hours were not automatically generated. You may need to create them manually.",
+              variant: "destructive"
+            });
+          } else {
+            toast({
+              title: "Success", 
+              description: `Roster created successfully with ${workingHours.length} working hours entries`
+            });
+          }
+        }
+      }, 1000);
+
       setIsDialogOpen(false);
       setFormData({
         profile_ids: [],
